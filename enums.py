@@ -19,6 +19,13 @@ class DiceValue(Enum):
     FOUR = 4
     FIVE = 5
     SIX = 6
+    NULL = -1
+
+
+def one_higher(value: DiceValue):
+    if value == DiceValue.SIX or value == DiceValue.NULL:
+        return DiceValue.NULL
+    return DiceValue(value.value+1)
 
 
 class DiceFace(Enum):
@@ -36,3 +43,29 @@ class DiceFace(Enum):
     ADD_TWO = 11
     BLANK = 12
     STAR_DECREE = 13
+
+    NULL = -1
+
+
+def to_value(face: DiceFace) -> DiceValue:
+    if face.value <= 6:
+        return DiceValue(face.value)
+    if face == DiceFace.STAR_ONE:
+        return DiceValue.ONE
+    return DiceValue.NULL
+
+
+class DiceType(Enum):
+    STANDARD = 0
+    IMMEDIATE = 1
+    SERF = 2
+    NOBLE = 3
+    ARTISAN = 4
+    INTRIGUE = 5
+    VOYAGE = 6
+    DECREE = 7
+
+
+class ScarabType(Enum):
+    REROLL = 0
+    PIPUP = 1
