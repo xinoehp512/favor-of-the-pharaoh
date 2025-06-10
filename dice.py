@@ -1,12 +1,24 @@
 import random
+from display import COLOR
 from enums import *
 
 
 class PipUpException(Exception):
-    ...
+    pass
 
 
 class Die:
+    die_color_dict = {
+        DiceType.STANDARD: 160,
+        DiceType.IMMEDIATE: 244,
+        DiceType.SERF: 202,
+        DiceType.NOBLE: 220,
+        DiceType.ARTISAN: 21,
+        DiceType.INTRIGUE: 28,
+        DiceType.VOYAGE: 0,
+        DiceType.DECREE: 56
+    }
+
     def __init__(self, dice_type: DiceType, face_pairs: list[tuple[DiceFace, DiceFace]], starting_face: DiceFace = DiceFace.NULL) -> None:
         self.dice_type = dice_type
         self.face_pairs = face_pairs
@@ -59,7 +71,7 @@ class Die:
         return self
 
     def __str__(self) -> str:
-        return f"{self.dice_type.name} {self.face.name}"
+        return COLOR(Die.die_color_dict[self.dice_type], f"{self.dice_type.name} {self.face.name}")
     __repr__ = __str__
 
 

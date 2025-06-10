@@ -1,6 +1,7 @@
 
 import random
 
+from display import BOLD, RESET
 from tile import *
 from enums import *
 from constraint import a_rows, b_rows  # type: ignore
@@ -16,9 +17,13 @@ class TileSet:
 
 
 class Game:
-    def __init__(self, modes: list[RowMode], tiles: list[Tile] | None = None) -> None:
+    def __init__(self, modes: list[RowMode], players: list[Player], tiles: list[Tile] | None = None, ) -> None:
         self.modes = modes
+        self.players = players
         self.tiles: dict[int, list[Tile]] = {}
+
+        self.next_player_turn = 0
+
         if tiles is None:
             for level in range(3, 8):
                 yellows = random.sample(tile_set.get_category(level, TileType.YELLOW), 2) if level != 7 else [
@@ -42,14 +47,25 @@ class Game:
         for level, tiles in self.tiles.items():
             print(f"Level {level} Tiles: {tiles}")
 
+    def play_game(self):
+        print(BOLD+"Welcome to Favor of the Pharaoh!"+RESET)
+        print("================================")
+        self.print_tiles()
+        while True:
+            next_player = self.players[self.next_player_turn]
+            self.next_player_turn += 1
+            self.next_player_turn %= len(self.players)
+            next_player.take_turn(self)
+
 
 tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start, estate_overseer, granary_master], Agent("Player 1"))
-    game = Game([], None)
-    player.take_turn(game)
+    player = Player([start], Agent("Player 1", 4), starting_tokens=10)
+    player2 = Player([start], Agent("Player 2", 1), starting_tokens=10)
+    game = Game([], [player, player2])
+    game.play_game()
 
 
 if __name__ == "__main__":

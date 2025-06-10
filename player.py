@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import random
 from dice import Die, PipUpException
+from display import COLOR, FOREGROUND, RESET
 from enums import *
 from tile import Tile
 
@@ -33,13 +34,16 @@ def reroll_function(player: Player, game: Game):
     player.tokens.remove(ScarabType.REROLL)
 
 
-pipup_action = Action("Use Pip-up Token", pipup_function)
-reroll_action = Action("Use Reroll Token", reroll_function)
+pipup_color = 5
+reroll_color = 2
+pipup_action = Action(f"Use {COLOR(pipup_color, "Pip-up")} Token", pipup_function)
+reroll_action = Action(f"Use {COLOR(reroll_color, "Reroll")} Token", reroll_function)
 
 
 class Agent:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, color: int) -> None:
         self.name = name
+        self.color = color
 
     def choose_dice(self, player: Player, game: Game, amount: int, maximum: int | None = -1, message: str = "Choose dice:") -> list[Die]:
         available_dice = player.available_dice
@@ -97,6 +101,14 @@ class Player:
         self.tokens: list[ScarabType] = []
         self.add_scarabs(starting_tokens)
 
+    @property
+    def pip_up_amount(self):
+        return self.tokens.count(ScarabType.PIPUP)
+
+    @property
+    def reroll_amount(self):
+        return self.tokens.count(ScarabType.REROLL)
+
     def add_scarabs(self, amount: int):
         for _ in range(amount):
             self.tokens.append(random.choice([ScarabType.PIPUP, ScarabType.REROLL]))
@@ -108,6 +120,7 @@ class Player:
         self.prepared_dice = []
 
         # Turn Start
+        print(COLOR(self.agent.color, f"===={self.agent.name}'s turn!===="))
         for tile in self.tiles:
             if tile.type in [TileType.YELLOW, TileType.BLUE]:
                 tile.disabled = False
@@ -132,17 +145,18 @@ class Player:
                     actions.append(reroll_action)
                 for tile in self.tiles:
                     if tile.ability.activation is not None and not tile.disabled:
-                        actions.append(Action(f"Activate {tile.name}", tile.activate))
+                        actions.append(Action(f"Activate {tile}", tile.activate))
 
                 print(f'Rolled Dice: {self.available_dice}')
-                print(f'Tokens: {self.tokens}')
+                print(
+                    f'Tokens: {FOREGROUND(pipup_color)}{self.pip_up_amount} Pip-ups{RESET}, {FOREGROUND(reroll_color)}{self.reroll_amount} Rerolls{RESET}')
                 print("\nAvailable actions:")
                 for i, action in enumerate(actions):
                     print(f"{i + 1}. {action.name}")
 
                 choice = "lock"
                 if actions:
-                    choice = input("Choose an action by number or name: ").strip().lower()
+                    choice = input("Choose an action by number or name (or 'lock'): ").strip().lower()
 
                 if choice == "lock":
                     dice_to_lock = self.agent.choose_dice(self, game, 0, maximum=None, message="Choose Dice to Lock")
@@ -179,3 +193,4 @@ class Player:
                     selected_action.function(self, game)
                 except PipUpException:
                     print("Can't pip-up that die!")
+        print(COLOR(self.agent.color, f"====End of {self.agent.name}'s turn!===="))

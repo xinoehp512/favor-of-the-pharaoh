@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections.abc import Callable
 from dice import Die, get_die
+from display import COLOR
 from enums import *
 
 from typing import TYPE_CHECKING
@@ -54,6 +55,12 @@ def both(*args: AbilityFunction):
 
 
 class Tile:
+    tile_color_dict = {
+        TileType.YELLOW: 226,
+        TileType.BLUE: 20,
+        TileType.RED: 196
+    }
+
     def __init__(self, name: str, level: int, type: TileType, ability: Ability = Ability()) -> None:
         self.name = name
         self.level = level
@@ -73,7 +80,7 @@ class Tile:
             self.value += 1
 
     def __str__(self) -> str:
-        return self.name
+        return COLOR(Tile.tile_color_dict[self.type], self.name)
     __repr__ = __str__
 
 
