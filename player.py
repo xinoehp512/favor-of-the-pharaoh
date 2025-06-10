@@ -113,66 +113,69 @@ class Player:
                 tile.disabled = False
             if tile.ability.turn_start is not None:
                 tile.ability.turn_start(self, game, tile)
+        while self.prepared_dice:
+            # Roll
+            for die in self.prepared_dice:
+                die.roll()
+                self.available_dice.append(die)
+            self.prepared_dice = []
 
-        # Roll
-        for die in self.prepared_dice:
-            die.roll()
-            self.available_dice.append(die)
-        self.prepared_dice = []
-
-        for tile in self.tiles:
-            tile.value_up()
-
-        # Action Phase
-        while True:
-            actions: list[Action] = []
-            if ScarabType.PIPUP in self.tokens:
-                actions.append(pipup_action)
-            if ScarabType.REROLL in self.tokens:
-                actions.append(reroll_action)
             for tile in self.tiles:
-                if tile.ability.activation is not None and not tile.disabled:
-                    actions.append(Action(f"Activate {tile.name}", tile.activate))
+                tile.value_up()
 
-            print(self.available_dice)
-            print(self.tokens)
-            print("\nAvailable actions:")
-            for i, action in enumerate(actions):
-                print(f"{i + 1}. {action.name}")
+            # Action Phase
+            while True:
+                actions: list[Action] = []
+                if ScarabType.PIPUP in self.tokens:
+                    actions.append(pipup_action)
+                if ScarabType.REROLL in self.tokens:
+                    actions.append(reroll_action)
+                for tile in self.tiles:
+                    if tile.ability.activation is not None and not tile.disabled:
+                        actions.append(Action(f"Activate {tile.name}", tile.activate))
 
-            choice = input("Choose an action by number or name: ").strip().lower()
+                print(f'Rolled Dice: {self.available_dice}')
+                print(f'Tokens: {self.tokens}')
+                print("\nAvailable actions:")
+                for i, action in enumerate(actions):
+                    print(f"{i + 1}. {action.name}")
 
-            if choice == "lock" or not actions:
-                dice_to_lock = self.agent.choose_dice(self, game, 0, maximum=None, message="Choose Dice to Lock")
-                if not dice_to_lock:
-                    print("Dice Locking cancelled.")
-                    continue
-                self.locked_dice.extend(dice_to_lock)
-                self.prepared_dice.extend([die for die in self.available_dice if die not in dice_to_lock])
-                print(f'Locked dice: {self.locked_dice}\nPrepared dice: {self.prepared_dice}')
-                break
+                choice = "lock"
+                if actions:
+                    choice = input("Choose an action by number or name: ").strip().lower()
 
-            selected_action = None
+                if choice == "lock":
+                    dice_to_lock = self.agent.choose_dice(self, game, 0, maximum=None, message="Choose Dice to Lock")
+                    if not dice_to_lock:
+                        print("Dice Locking cancelled.")
+                        continue
+                    self.locked_dice.extend(dice_to_lock)
+                    self.prepared_dice.extend([die for die in self.available_dice if die not in dice_to_lock])
+                    self.available_dice = []
+                    print(f'Locked dice: {self.locked_dice}')
+                    break
 
-            if choice.isdigit():
-                index = int(choice) - 1
-                if 0 <= index < len(actions):
-                    selected_action = actions[index]
+                selected_action = None
+
+                if choice.isdigit():
+                    index = int(choice) - 1
+                    if 0 <= index < len(actions):
+                        selected_action = actions[index]
+                    else:
+                        print("Invalid number. Try again.")
+                        continue
                 else:
-                    print("Invalid number. Try again.")
-                    continue
-            else:
-                for action in actions:
-                    if action.name.lower() == choice:
-                        selected_action = action
-                        break
-                if not selected_action:
-                    print("Invalid name. Try again.")
-                    continue
+                    for action in actions:
+                        if action.name.lower() == choice:
+                            selected_action = action
+                            break
+                    if not selected_action:
+                        print("Invalid name. Try again.")
+                        continue
 
-            print(f"You chose: {selected_action.name}")
+                print(f"You chose: {selected_action.name}")
 
-            try:
-                selected_action.function(self, game)
-            except PipUpException:
-                print("Can't pip-up that die!")
+                try:
+                    selected_action.function(self, game)
+                except PipUpException:
+                    print("Can't pip-up that die!")
