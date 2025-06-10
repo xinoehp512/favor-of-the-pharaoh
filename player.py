@@ -22,14 +22,14 @@ class Action:
 def pipup_function(player: Player, game: Game):
     if ScarabType.PIPUP not in player.tokens:
         raise Exception("No pip-up scarab!")
-    player.agent.choose_dice(player, game, 1, "Choose die to pipup:")[0].pipup()
+    player.agent.choose_dice(player, game, 1, message="Choose die to pipup:")[0].pipup()
     player.tokens.remove(ScarabType.PIPUP)
 
 
 def reroll_function(player: Player, game: Game):
     if ScarabType.REROLL not in player.tokens:
         raise Exception("No reroll scarab!")
-    player.agent.choose_dice(player, game, 1, "Choose die to reroll:")[0].roll()
+    player.agent.choose_dice(player, game, 1, message="Choose die to reroll:")[0].roll()
     player.tokens.remove(ScarabType.REROLL)
 
 
@@ -41,29 +41,41 @@ class Agent:
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def choose_dice(self, player: Player, game: Game, amount: int, message: str = "Choose dice:"):
+    def choose_dice(self, player: Player, game: Game, amount: int, maximum: int | None = -1, message: str = "Choose dice:") -> list[Die]:
         available_dice = player.available_dice
 
         if amount > len(available_dice):
             raise ValueError(f"Cannot choose {amount} dice from only {len(available_dice)} available.")
+
+        if maximum is None:
+            maximum = len(available_dice)
 
         print(message)
         for idx, die in enumerate(available_dice):
             print(f"{idx + 1}: {die}")
 
         while True:
-            raw_input = input(f"Enter {amount} distinct dice numbers (1-{len(available_dice)}), separated by commas: ")
+            amount_str = str(amount)
+            if maximum > amount:
+                amount_str = f'{amount} to {maximum}'
+            raw_input = input(f"Enter {amount_str} distinct dice numbers (1-{len(available_dice)}), separated by commas: ")
+            if amount == 0 and raw_input.lower() == "none":
+                return []
             try:
                 selections = [int(x.strip()) for x in raw_input.split(',')]
             except ValueError:
                 print("Please enter only numbers separated by commas.")
                 continue
 
-            if len(selections) != amount:
+            if len(selections) != amount and maximum <= amount:
                 print(f"Please select exactly {amount} dice.")
                 continue
 
-            if len(set(selections)) != amount:
+            if len(selections) < amount and maximum > amount:
+                print(f"Please select between {amount} and {maximum} dice.")
+                continue
+
+            if len(set(selections)) != len(selections):
                 print("Duplicate selections detected. All choices must be distinct.")
                 continue
 
@@ -101,8 +113,6 @@ class Player:
                 tile.disabled = False
             if tile.ability.turn_start is not None:
                 tile.ability.turn_start(self, game, tile)
-        # print(self.prepared_dice)
-        # print(self.tokens)
 
         # Roll
         for die in self.prepared_dice:
@@ -130,14 +140,16 @@ class Player:
             for i, action in enumerate(actions):
                 print(f"{i + 1}. {action.name}")
 
-            if not actions:
-                print("No actions left.")
-                break
-
             choice = input("Choose an action by number or name: ").strip().lower()
 
-            if choice == "quit":
-                print("Exiting...")
+            if choice == "lock" or not actions:
+                dice_to_lock = self.agent.choose_dice(self, game, 0, maximum=None, message="Choose Dice to Lock")
+                if not dice_to_lock:
+                    print("Dice Locking cancelled.")
+                    continue
+                self.locked_dice.extend(dice_to_lock)
+                self.prepared_dice.extend([die for die in self.available_dice if die not in dice_to_lock])
+                print(f'Locked dice: {self.locked_dice}\nPrepared dice: {self.prepared_dice}')
                 break
 
             selected_action = None
