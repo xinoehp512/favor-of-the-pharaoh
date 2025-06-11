@@ -4,7 +4,7 @@ import random
 from display import BOLD, RESET
 from tile import *
 from enums import *
-from constraint import a_rows, b_rows  # type: ignore
+from constraint import Constraint, a_rows, b_rows, any_roll_constraint
 from player import Agent, Player
 
 
@@ -17,8 +17,8 @@ class TileSet:
 
 
 class Game:
-    def __init__(self, modes: list[RowMode], players: list[Player], tiles: list[Tile] | None = None, ) -> None:
-        self.modes = modes
+    def __init__(self, players: list[Player], modes: list[RowMode] | None = None, tiles: list[Tile] | None = None, ) -> None:
+        self.modes = modes or [random.choice([RowMode.A, RowMode.B]) for _ in range(5)]
         self.players = players
         self.tiles: dict[int, list[Tile]] = {}
 
@@ -39,18 +39,62 @@ class Game:
                 if len(yellows+blue+red) != 4:
                     raise Exception(f"Incorrect tile setup: length of {yellows+blue+red} is not 4.")
                 self.tiles[level] = yellows+blue+red
+        self.tiles[1] = [herder]
+
+        self.amounts: dict[Tile, int] = {}
+        player_count = len(self.players)
+        amount_by_level = {
+            1: player_count,
+            3: player_count,
+            4: max(1, player_count-1),
+            5: max(1, player_count-2),
+            6: max(1, player_count-2),
+            7: 1
+        }
+        for level, tiles in self.tiles.items():
+            for tile in tiles:
+                self.amounts[tile] = amount_by_level[level]
 
     def get_row_mode(self, level: int):
         return self.modes[level-3]
 
+    def get_condition(self, level: int, idx: int):
+        if level == 1:
+            return any_roll_constraint
+        if self.get_row_mode(level) == RowMode.A:
+            return a_rows[level-3][idx]
+        else:
+            return b_rows[level-3][idx]
+
     def print_tiles(self):
+        for level in range(7, 2, -1):
+            print(f"Level {level} Tiles ({self.get_row_mode(level).name} side): {self.tiles[level]}")
+
+    def get_tiles_conditions(self):
+        tiles_and_conditions: list[tuple[Tile, Constraint]] = []
         for level, tiles in self.tiles.items():
-            print(f"Level {level} Tiles: {tiles}")
+            for idx, tile in enumerate(tiles):
+                tiles_and_conditions.append((tile, self.get_condition(level, idx)))
+        return tiles_and_conditions
+
+    def tile_available(self, tile: Tile):
+        return self.amounts[tile] > 0
+
+    def claim_tile(self, player: Player, tile: Tile):
+        if tile in player.tiles:
+            raise Exception("Players may only have one of each tile.")
+        if self.amounts[tile] == 0:
+            raise Exception(f"All {tile}s have been claimed.")
+        self.amounts[tile] -= 1
+        player.tiles.append(tile)
+        if tile.type == TileType.BLUE:
+            player.add_scarabs(1)
+        if tile.type == TileType.RED:
+            player.add_scarabs(2)
 
     def play_game(self):
         print(BOLD+"Welcome to Favor of the Pharaoh!"+RESET)
         print("================================")
-        self.print_tiles()
         while True:
             next_player = self.players[self.next_player_turn]
             self.next_player_turn += 1
@@ -64,8 +108,9 @@ tile_set = TileSet(tiles)
 def main():
     player = Player([start], Agent("Player 1", 4), starting_tokens=10)
     player2 = Player([start], Agent("Player 2", 1), starting_tokens=10)
-    game = Game([], [player, player2])
+    game = Game([player, player2])
     game.play_game()
+    # print(game.get_tiles_conditions())
 
 
 if __name__ == "__main__":

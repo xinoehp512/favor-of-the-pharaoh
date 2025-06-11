@@ -79,6 +79,15 @@ class Tile:
         if self.value < 6:
             self.value += 1
 
+    def clone(self):
+        return Tile(self.name, self.level, self.type, self.ability)
+
+    def __eq__(self, value: object) -> bool:
+        return isinstance(value, Tile) and value.name == self.name
+
+    def __hash__(self) -> int:
+        return hash(self.name)
+
     def __str__(self) -> str:
         return COLOR(Tile.tile_color_dict[self.type], self.name)
     __repr__ = __str__

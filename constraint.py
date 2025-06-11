@@ -116,6 +116,8 @@ grand_straight = contains([DiceValue.ONE, DiceValue.TWO, DiceValue.THREE, DiceVa
 pair_of_sixes_and_ones = contains([DiceValue.SIX, DiceValue.SIX, DiceValue.ONE, DiceValue.ONE])
 three_sixes_two_ones = contains([DiceValue.SIX, DiceValue.SIX, DiceValue.SIX, DiceValue.ONE, DiceValue.ONE])
 
+any_roll: ConstraintFunc = lambda r: True
+
 
 def all_different(dice: list[DiceValue]) -> bool:
     face_freq = get_freq_dist(dice)
@@ -136,6 +138,10 @@ class Constraint:
     def __init__(self, name: str, function: ConstraintFunc) -> None:
         self.name = name
         self.function = function
+
+    def __str__(self) -> str:
+        return self.name
+    __repr__ = __str__
 
 
 pair_constraint = Constraint("Pair", pair)
@@ -192,3 +198,4 @@ row5b = [seven_of_a_kind_constraint, four_of_a_kind_three_ones_constraint,
 
 a_rows = [row1a, row2a, row3a, row4a, row5a]
 b_rows = [row1b, row2b, row3b, row4b, row5b]
+any_roll_constraint = Constraint("Any Roll", any_roll)

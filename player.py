@@ -7,7 +7,7 @@ from enums import *
 from tile import Tile
 
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, TypeVar
 if TYPE_CHECKING:
     from main import Game
 
@@ -90,6 +90,44 @@ class Agent:
             chosen_dice = [available_dice[i - 1] for i in selections]
             return chosen_dice
 
+    def __str__(self) -> str:
+        return COLOR(self.color, self.name)
+    __repr__ = __str__
+
+
+T = TypeVar('T')
+
+
+def choose_item(options: List[T], display: Callable[[T], str] = str) -> T:
+    """
+    Prompts the user to choose an item from the provided options list.
+
+    Args:
+        options (List[T]): A list of available options of any type.
+        display (Callable[[T], str]): Function to convert an item to a string for display. Defaults to str.
+
+    Returns:
+        T: The selected item from the list.
+    """
+    if not options:
+        raise ValueError("No options available to choose from.")
+
+    while True:
+        print("\nAvailable options:")
+        for i, option in enumerate(options, start=1):
+            print(f"{i}: {display(option)}")
+
+        choice = input("Choose an option by number: ").strip()
+        if not choice.isdigit():
+            print("Please enter a valid number.")
+            continue
+
+        index = int(choice)-1
+        if 0 <= index and index < len(options):
+            return options[index]
+        else:
+            print("Choice out of range. Try again.")
+
 
 class Player:
     def __init__(self, tiles: list[Tile], agent: Agent, starting_tokens: int = 0) -> None:
@@ -120,12 +158,14 @@ class Player:
         self.prepared_dice = []
 
         # Turn Start
-        print(COLOR(self.agent.color, f"===={self.agent.name}'s turn!===="))
+        print(f"===={self.agent}'s turn!====")
+        game.print_tiles()
         for tile in self.tiles:
             if tile.type in [TileType.YELLOW, TileType.BLUE]:
                 tile.disabled = False
             if tile.ability.turn_start is not None:
                 tile.ability.turn_start(self, game, tile)
+                tile.value = 0
         while self.prepared_dice:
             # Roll
             for die in self.prepared_dice:
@@ -150,6 +190,7 @@ class Player:
                 print(f'Rolled Dice: {self.available_dice}')
                 print(
                     f'Tokens: {FOREGROUND(pipup_color)}{self.pip_up_amount} Pip-ups{RESET}, {FOREGROUND(reroll_color)}{self.reroll_amount} Rerolls{RESET}')
+                print(f"Tiles: {self.tiles}")
                 print("\nAvailable actions:")
                 for i, action in enumerate(actions):
                     print(f"{i + 1}. {action.name}")
@@ -193,4 +234,20 @@ class Player:
                     selected_action.function(self, game)
                 except PipUpException:
                     print("Can't pip-up that die!")
-        print(COLOR(self.agent.color, f"====End of {self.agent.name}'s turn!===="))
+        dice_values = [to_value(die.face) for die in self.locked_dice]
+        dice_amount = len(self.locked_dice)
+        print(f"{self.agent} finished their roll with {dice_values} locked.")
+        tile_options: list[Tile] = []
+        for tile, condition in game.get_tiles_conditions():
+            if tile not in self.tiles and game.tile_available(tile) and dice_amount >= tile.level and condition.function(dice_values):
+                print(f"{self.agent}'s dice fulfill the {condition} condition for the {tile} tile.")
+                tile_options.append(tile)
+        if tile_options:
+            tile_to_claim = choose_item(tile_options)
+            game.claim_tile(self, tile_to_claim)
+            print(f"{tile_to_claim} claimed by {self.agent}!")
+        else:
+            print(f"{self.agent} couldn't claim any tiles! They recieved 2 tokens as compensation.")
+            self.add_scarabs(2)
+
+        print(f"====End of {self.agent}'s turn!====")
