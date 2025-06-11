@@ -159,7 +159,6 @@ class Player:
 
         # Turn Start
         print(f"===={self.agent}'s turn!====")
-        game.print_tiles()
         for tile in self.tiles:
             if tile.type in [TileType.YELLOW, TileType.BLUE]:
                 tile.disabled = False
@@ -187,7 +186,9 @@ class Player:
                     if tile.ability.activation is not None and not tile.disabled:
                         actions.append(Action(f"Activate {tile}", tile.activate))
 
+                game.print_tiles()
                 print(f'Rolled Dice: {self.available_dice}')
+                print(f'Locked dice: {self.locked_dice}')
                 print(
                     f'Tokens: {FOREGROUND(pipup_color)}{self.pip_up_amount} Pip-ups{RESET}, {FOREGROUND(reroll_color)}{self.reroll_amount} Rerolls{RESET}')
                 print(f"Tiles: {self.tiles}")
@@ -201,13 +202,16 @@ class Player:
 
                 if choice == "lock":
                     dice_to_lock = self.agent.choose_dice(self, game, 0, maximum=None, message="Choose Dice to Lock")
+                    dice_to_reroll = [die for die in self.available_dice if die not in dice_to_lock]
+                    if any(die.dice_type == DiceType.IMMEDIATE for die in dice_to_reroll):
+                        print("Immediate Dice must be locked.")
+                        continue
                     if not dice_to_lock:
                         print("Dice Locking cancelled.")
                         continue
                     self.locked_dice.extend(dice_to_lock)
-                    self.prepared_dice.extend([die for die in self.available_dice if die not in dice_to_lock])
+                    self.prepared_dice.extend(dice_to_reroll)
                     self.available_dice = []
-                    print(f'Locked dice: {self.locked_dice}')
                     break
 
                 selected_action = None
@@ -234,6 +238,7 @@ class Player:
                     selected_action.function(self, game)
                 except PipUpException:
                     print("Can't pip-up that die!")
+        # Claim Phase
         dice_values = [to_value(die.face) for die in self.locked_dice]
         dice_amount = len(self.locked_dice)
         print(f"{self.agent} finished their roll with {dice_values} locked.")
