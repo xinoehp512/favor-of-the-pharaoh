@@ -90,43 +90,42 @@ class Agent:
             chosen_dice = [available_dice[i - 1] for i in selections]
             return chosen_dice
 
+    def choose_item(self, options: List[T], display: Callable[[T], str] = str) -> T:
+        """
+        Prompts the user to choose an item from the provided options list.
+
+        Args:
+            options (List[T]): A list of available options of any type.
+            display (Callable[[T], str]): Function to convert an item to a string for display. Defaults to str.
+
+        Returns:
+            T: The selected item from the list.
+        """
+        if not options:
+            raise ValueError("No options available to choose from.")
+
+        while True:
+            print("\nAvailable options:")
+            for i, option in enumerate(options, start=1):
+                print(f"{i}: {display(option)}")
+
+            choice = input("Choose an option by number: ").strip()
+            if not choice.isdigit():
+                print("Please enter a valid number.")
+                continue
+
+            index = int(choice)-1
+            if 0 <= index and index < len(options):
+                return options[index]
+            else:
+                print("Choice out of range. Try again.")
+
     def __str__(self) -> str:
         return COLOR(self.color, self.name)
     __repr__ = __str__
 
 
 T = TypeVar('T')
-
-
-def choose_item(options: List[T], display: Callable[[T], str] = str) -> T:
-    """
-    Prompts the user to choose an item from the provided options list.
-
-    Args:
-        options (List[T]): A list of available options of any type.
-        display (Callable[[T], str]): Function to convert an item to a string for display. Defaults to str.
-
-    Returns:
-        T: The selected item from the list.
-    """
-    if not options:
-        raise ValueError("No options available to choose from.")
-
-    while True:
-        print("\nAvailable options:")
-        for i, option in enumerate(options, start=1):
-            print(f"{i}: {display(option)}")
-
-        choice = input("Choose an option by number: ").strip()
-        if not choice.isdigit():
-            print("Please enter a valid number.")
-            continue
-
-        index = int(choice)-1
-        if 0 <= index and index < len(options):
-            return options[index]
-        else:
-            print("Choice out of range. Try again.")
 
 
 class Player:
@@ -150,6 +149,34 @@ class Player:
     def add_scarabs(self, amount: int):
         for _ in range(amount):
             self.tokens.append(random.choice([ScarabType.PIPUP, ScarabType.REROLL]))
+
+    def resolve_powers_rolled(self, game: Game):
+        powers_triggered = [die for die in self.available_dice if die.power_triggered]
+        while powers_triggered:
+            if len(self.powers_rolled) > 1:
+                print("Choose a dice power to use:")
+                die = self.agent.choose_item(powers_triggered)
+
+            else:
+                die = powers_triggered.pop()
+            face = die.face
+            die.power_triggered = False
+            if face == DiceFace.REROLL:
+                die_to_roll = self.agent.choose_dice(self, game, 1, message="Choose die to reroll:")[0]
+                die_to_roll.roll()
+            if face in [DiceFace.STAR, DiceFace.STAR_ONE, DiceFace.STAR_DECREE, DiceFace.TWO_STAR]:
+                amount = 2 if face == DiceFace.TWO_STAR else 1
+                response = self.agent.choose_dice(
+                    self, game, 0, maximum=amount, message=f"Choose up to {"two dice" if face == DiceFace.TWO_STAR else "one die"} to adjust:")
+                for die_to_adjust in response:
+                    face_options = die_to_adjust.faces
+                    face_options.remove(die_to_adjust.face)
+                    print("Choose a new face:")
+                    new_face = self.agent.choose_item(face_options)
+                    die_to_adjust.set_face(new_face)
+
+            powers_triggered = [die for die in self.available_dice if die.power_triggered]
+            print(f'Rolled Dice: {self.available_dice}')
 
     def take_turn(self, game: Game):
         # Reset Dice Zones
@@ -192,6 +219,10 @@ class Player:
                 print(
                     f'Tokens: {FOREGROUND(pipup_color)}{self.pip_up_amount} Pip-ups{RESET}, {FOREGROUND(reroll_color)}{self.reroll_amount} Rerolls{RESET}')
                 print(f"Tiles: {self.tiles}")
+
+                self.powers_rolled = [die.face for die in self.available_dice if die.face in Die.power_faces]
+                self.resolve_powers_rolled(game)
+
                 print("\nAvailable actions:")
                 for i, action in enumerate(actions):
                     print(f"{i + 1}. {action.name}")
@@ -236,6 +267,8 @@ class Player:
 
                 try:
                     selected_action.function(self, game)
+                    self.resolve_powers_rolled(game)
+
                 except PipUpException:
                     print("Can't pip-up that die!")
         # Claim Phase
@@ -248,7 +281,7 @@ class Player:
                 print(f"{self.agent}'s dice fulfill the {condition} condition for the {tile} tile.")
                 tile_options.append(tile)
         if tile_options:
-            tile_to_claim = choose_item(tile_options)
+            tile_to_claim = self.agent.choose_item(tile_options)
             game.claim_tile(self, tile_to_claim)
             print(f"{tile_to_claim} claimed by {self.agent}!")
         else:

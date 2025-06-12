@@ -106,9 +106,10 @@ tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start], Agent("Player 1", 4), starting_tokens=10)
+    player = Player([start, artisan, conspirator, ship_captain, grand_vizier], Agent("Player 1", 4), starting_tokens=10)
     player2 = Player([start], Agent("Player 2", 1), starting_tokens=10)
     game = Game([player, player2])
+    random.seed(1)
     game.play_game()
     # print(game.get_tiles_conditions())
 

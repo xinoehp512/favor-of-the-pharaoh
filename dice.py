@@ -8,6 +8,7 @@ class PipUpException(Exception):
 
 
 class Die:
+    power_faces = [DiceFace.STAR, DiceFace.STAR_ONE, DiceFace.STAR_DECREE, DiceFace.TWO_STAR, DiceFace.REROLL]
     die_color_dict = {
         DiceType.STANDARD: 160,
         DiceType.IMMEDIATE: 244,
@@ -24,6 +25,8 @@ class Die:
         self.face_pairs = face_pairs
         self.starting_value = starting_face
         self.face = starting_face
+
+        self.power_triggered = False
 
     def clone(self):
         return Die(self.dice_type, self.face_pairs, starting_face=self.starting_value)
@@ -53,6 +56,8 @@ class Die:
 
     def roll(self):
         self.face = random.choice(self.faces)
+        if self.face in Die.power_faces:
+            self.power_triggered = True
         return self.face
 
     def pipup(self):
@@ -68,6 +73,8 @@ class Die:
         if face not in self.faces:
             raise Exception(f"Face {face} not on dice {self.dice_type}.")
         self.face = face
+        if self.face in Die.power_faces:
+            self.power_triggered = True
         return self
 
     def __str__(self) -> str:
