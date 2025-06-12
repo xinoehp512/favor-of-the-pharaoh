@@ -11,6 +11,15 @@ if TYPE_CHECKING:
 
 
 AbilityFunction = Callable[['Player', 'Game', 'Tile'], None]
+ActionFunction = Callable[['Player', 'Game'], None]
+
+
+class SelectionException(Exception):
+    pass
+
+
+class RearrangementException(Exception):
+    pass
 
 
 class Ability:
@@ -23,6 +32,11 @@ class Ability:
         self.on_claim = on_claim_function
 
         self.activation_restriction = None
+
+
+class Effect:
+    def __init__(self, turn_start_function: ActionFunction) -> None:
+        self.turn_start = turn_start_function
 
 
 def add_roll_dice(dice: list[Die]):
@@ -65,20 +79,56 @@ def rearrange_dice(amount: int):
         chosen_dice = player.agent.choose_dice(player, game, amount, message="Choose dice to rearrange pips:")
         if any(to_value(die.face) is DiceValue.NULL for die in chosen_dice):
             print("Can't move pips on non-numeric faces!")
-            return
+            raise RearrangementException()
         try:
             total_sum = sum(to_value(die.face).value for die in chosen_dice)
             rearrangement = player.agent.choose_rearrangement(player, game, chosen_dice, total_sum)
             for die, face in rearrangement:
                 die.set_face(face)
         except ValueError as e:
-            print("Rearrangement Failed!")
             print(e.args)
+            raise RearrangementException()
     return func
 
 
 def ankh_ability(player: Player, game: Game, tile: Tile):
     player.add_scarabs(player.token_count)
+
+
+def omen_ability(player: Player, game: Game, tile: Tile):
+    def remove_red(player: Player, game: Game):
+        for die in player.prepared_dice:
+            if die.dice_type == DiceType.STANDARD:
+                player.prepared_dice.remove(die)
+                break
+    if player.step == TurnStep.CLAIM:
+        game.set_next_turn(player)
+        player.add_effect(Effect(remove_red))
+
+
+def good_omen_ability(player: Player, game: Game, tile: Tile):
+    if player.step == TurnStep.CLAIM:
+        game.set_next_turn(player)
+
+
+def ancestral_guidance_ability(player: Player, game: Game, tile: Tile):
+    player.prepared_dice.append(get_die(DiceType.STANDARD))
+    player.add_scarabs(2)
+
+
+def grain_merchant_ability(player: Player, game: Game, tile: Tile):
+    chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None, message="Choose dice to reroll:")
+    if not chosen_dice:
+        raise SelectionException()
+    for die in chosen_dice:
+        die.roll()
+    player.add_scarabs(1)
+
+
+def entertainer_ability(player: Player, game: Game, tile: Tile):
+    chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None, message="Choose dice to reroll:")
+    for die in chosen_dice:
+        die.flip()
 
 
 class Tile:
@@ -137,9 +187,12 @@ servant = Tile("SERVANT", 3, TileType.BLUE, ability=Ability(
     activation_function=servant_ability))
 soothsayer = Tile("SOOTHSAYER", 3, TileType.BLUE, ability=Ability(
     activation_function=rearrange_dice(2)))
-ankh = Tile("ANKH", 3, TileType.RED)
-omen = Tile("OMEN", 3, TileType.RED)
-ancestral_guidance = Tile("ANCESTRAL GUIDANCE", 3, TileType.RED)
+ankh = Tile("ANKH", 3, TileType.RED, ability=Ability(
+    activation_function=ankh_ability))
+omen = Tile("OMEN", 3, TileType.RED, ability=Ability(
+    on_claim_function=omen_ability))
+ancestral_guidance = Tile("ANCESTRAL GUIDANCE", 3, TileType.RED, ability=Ability(
+    activation_function=ancestral_guidance_ability))
 
 artisan = Tile("ARTISAN", 4, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([get_die(DiceType.ARTISAN)])))
@@ -151,10 +204,13 @@ palace_servants = Tile("PALACE SERVANTS", 4, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([get_die(DiceType.IMMEDIATE) for _ in range(2)])))
 soldier = Tile("SOLDIER", 4, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.THREE)))
-grain_merchant = Tile("GRAIN MERCHANT", 4, TileType.BLUE)
-entertainer = Tile("ENTERTAINER", 4, TileType.BLUE)
+grain_merchant = Tile("GRAIN MERCHANT", 4, TileType.BLUE, ability=Ability(
+    activation_function=grain_merchant_ability))
+entertainer = Tile("ENTERTAINER", 4, TileType.BLUE, ability=Ability(
+    activation_function=entertainer_ability))
 matchmaker = Tile("MATCHMAKER", 4, TileType.BLUE)
-good_omen = Tile("GOOD OMEN", 4, TileType.RED)
+good_omen = Tile("GOOD OMEN", 4, TileType.RED, ability=Ability(
+    on_claim_function=good_omen_ability))
 palace_key = Tile("PALACE KEY", 4, TileType.RED)
 spirit_of_the_dead = Tile("SPIRIT OF THE DEAD", 4, TileType.RED)
 

@@ -5,14 +5,12 @@ import random
 from dice import Die, PipUpException
 from display import COLOR, FOREGROUND, RESET
 from enums import *
-from tile import Tile
+from tile import ActionFunction, Effect, SelectionException, RearrangementException, Tile
 
 
 from typing import TYPE_CHECKING, TypeVar
 if TYPE_CHECKING:
     from main import Game
-
-ActionFunction = Callable[['Player', 'Game'], None]
 
 
 class Action:
@@ -193,6 +191,7 @@ class Player:
         self.locked_dice: list[Die] = []
         self.prepared_dice: list[Die] = []
         self.tokens: list[ScarabType] = []
+        self.effects: list[Effect] = []
         self.step = TurnStep.NONE
         self.add_scarabs(starting_tokens)
 
@@ -211,6 +210,9 @@ class Player:
     def add_scarabs(self, amount: int):
         for _ in range(amount):
             self.tokens.append(random.choice([ScarabType.PIPUP, ScarabType.REROLL]))
+
+    def add_effect(self, effect: Effect):
+        self.effects.append(effect)
 
     def resolve_powers_rolled(self, game: Game):
         powers_triggered = [die for die in self.available_dice if die.power_triggered]
@@ -255,6 +257,9 @@ class Player:
             if tile.ability.turn_start is not None:
                 tile.ability.turn_start(self, game, tile)
                 tile.value = 0
+        for effect in self.effects:
+            effect.turn_start(self, game)
+        self.effects = []
         self.step = TurnStep.ROLLS
         while self.prepared_dice:
             # Roll
@@ -332,9 +337,12 @@ class Player:
                 try:
                     selected_action.function(self, game)
                     self.resolve_powers_rolled(game)
-
+                except SelectionException:
+                    print("Must select at least one die to roll!")
                 except PipUpException:
                     print("Can't pip-up that die!")
+                except RearrangementException:
+                    print("Rearrangement Failed!")
         # Claim Phase
         self.step = TurnStep.CLAIM
         dice_values = [to_value(die.face) for die in self.locked_dice]
@@ -354,3 +362,4 @@ class Player:
             self.add_scarabs(2)
 
         print(f"====End of {self.agent}'s turn!====")
+        self.step = TurnStep.NONE

@@ -40,12 +40,14 @@ class Die:
             return False
         return self.has_value(x_higher(x, to_value(self.face)))
 
-    def get_flipped(self, face: DiceFace):
-        if not self.has_face(face):
-            raise Exception(f"Face {face} not on dice {self.dice_type}.")
+    def get_flipped(self, face: DiceFace) -> DiceFace:
         for face_pair in self.face_pairs:
             if face in face_pair:
                 return face_pair[1-face_pair.index(face)]
+        raise Exception(f"Face {face} not on dice {self.dice_type}.")
+
+    def flip(self):
+        self.set_face(self.get_flipped(self.face))
 
     def has_face(self, face: DiceFace) -> bool:
         return face in self.faces
