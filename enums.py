@@ -83,5 +83,6 @@ class TurnStep(Enum):
     TURN_START = 0
     ROLLS = 1
     CLAIM = 2
+    LOCK = 3
 
     NONE = -1

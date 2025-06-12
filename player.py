@@ -207,6 +207,10 @@ class Player:
     def token_count(self):
         return len(self.tokens)
 
+    @property
+    def locked_all(self):
+        return not self.available_dice and not self.prepared_dice
+
     def add_scarabs(self, amount: int):
         for _ in range(amount):
             self.tokens.append(random.choice([ScarabType.PIPUP, ScarabType.REROLL]))
@@ -242,6 +246,16 @@ class Player:
             powers_triggered = [die for die in self.available_dice if die.power_triggered]
             print(f'Rolled Dice: {self.available_dice}')
 
+    def get_active_tiles(self, game: Game):
+        return [tile for tile in self.tiles if tile.ability.activation is not None and not tile.disabled and self.step in tile.ability.activation_window and tile.ability.activation_restriction(self, game)]
+
+    def query_optional_activations(self, game: Game):
+        for tile in self.get_active_tiles(game):
+            print(f"Activate {tile}?")
+            if self.agent.choose_item(["Yes", "No"]) == "Yes":
+                assert tile.ability.activation is not None
+                tile.activate(self, game)
+
     def take_turn(self, game: Game):
         # Reset Dice Zones
         self.available_dice = []
@@ -257,12 +271,13 @@ class Player:
             if tile.ability.turn_start is not None:
                 tile.ability.turn_start(self, game, tile)
                 tile.value = 0
+        self.query_optional_activations(game)
         for effect in self.effects:
             effect.turn_start(self, game)
         self.effects = []
-        self.step = TurnStep.ROLLS
         while self.prepared_dice:
             # Roll
+            self.step = TurnStep.ROLLS
             for die in self.prepared_dice:
                 die.roll()
                 self.available_dice.append(die)
@@ -278,9 +293,8 @@ class Player:
                     actions.append(pipup_action)
                 if ScarabType.REROLL in self.tokens:
                     actions.append(reroll_action)
-                for tile in self.tiles:
-                    if tile.ability.activation is not None and not tile.disabled:
-                        actions.append(Action(f"Activate {tile}", tile.activate))
+                for tile in self.get_active_tiles(game):
+                    actions.append(Action(f"Activate {tile}", tile.activate))
 
                 game.print_tiles()
                 print(f'Rolled Dice: {self.available_dice}')
@@ -301,6 +315,7 @@ class Player:
                     choice = input("Choose an action by number or name (or 'lock'): ").strip().lower()
 
                 if choice == "lock":
+                    self.step = TurnStep.LOCK
                     dice_to_lock = self.agent.choose_dice(self, game, 0, maximum=None, message="Choose Dice to Lock")
                     dice_to_reroll = [die for die in self.available_dice if die not in dice_to_lock]
                     if any(die.dice_type == DiceType.IMMEDIATE for die in dice_to_reroll):
@@ -312,6 +327,7 @@ class Player:
                     self.locked_dice.extend(dice_to_lock)
                     self.prepared_dice.extend(dice_to_reroll)
                     self.available_dice = []
+                    self.query_optional_activations(game)
                     break
 
                 selected_action = None
@@ -360,6 +376,7 @@ class Player:
         else:
             print(f"{self.agent} couldn't claim any tiles! They recieved 2 tokens as compensation.")
             self.add_scarabs(2)
+        self.query_optional_activations(game)
 
         print(f"====End of {self.agent}'s turn!====")
         self.step = TurnStep.NONE

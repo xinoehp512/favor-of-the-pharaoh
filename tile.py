@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections.abc import Callable
-from dice import Die, get_die
+from dice import get_die
 from display import COLOR
 from enums import *
 
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 AbilityFunction = Callable[['Player', 'Game', 'Tile'], None]
 ActionFunction = Callable[['Player', 'Game'], None]
+GameConstraint = Callable[['Player', 'Game'], bool]
 
 
 class SelectionException(Exception):
@@ -26,12 +27,15 @@ class Ability:
     def __init__(self,
                  turn_start_function: AbilityFunction | None = None,
                  activation_function: AbilityFunction | None = None,
-                 on_claim_function: AbilityFunction | None = None) -> None:
+                 on_claim_function: AbilityFunction | None = None,
+                 activation_restriction: GameConstraint = lambda p, g: True,
+                 activation_window: list[TurnStep] = [TurnStep.ROLLS]) -> None:
         self.turn_start = turn_start_function
         self.activation = activation_function
         self.on_claim = on_claim_function
 
-        self.activation_restriction = None
+        self.activation_restriction = activation_restriction
+        self.activation_window = activation_window
 
 
 class Effect:
@@ -39,9 +43,9 @@ class Effect:
         self.turn_start = turn_start_function
 
 
-def add_roll_dice(dice: list[Die]):
+def add_roll_dice(dice: list[DiceType]):
     def func(player: Player, game: Game, tile: Tile):
-        [player.prepared_dice.append(die.clone()) for die in dice]
+        [player.prepared_dice.append(get_die(die)) for die in dice]
     return func
 
 
@@ -111,11 +115,6 @@ def good_omen_ability(player: Player, game: Game, tile: Tile):
         game.set_next_turn(player)
 
 
-def ancestral_guidance_ability(player: Player, game: Game, tile: Tile):
-    player.prepared_dice.append(get_die(DiceType.STANDARD))
-    player.add_scarabs(2)
-
-
 def grain_merchant_ability(player: Player, game: Game, tile: Tile):
     chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None, message="Choose dice to reroll:")
     if not chosen_dice:
@@ -141,6 +140,12 @@ def matchmaker_ability(player: Player, game: Game, tile: Tile):
     options = [face for face in die_to_adjust.faces if to_value(face) in locked_values]
     face_to_match = player.agent.choose_item(options)
     die_to_adjust.set_face(face_to_match)
+
+
+def add_locked_wild_die(player: Player, game: Game, tile: Tile):
+    print("Choose the dice value")
+    face = player.agent.choose_item(get_die(DiceType.STANDARD).faces)
+    player.locked_dice.append(get_die(DiceType.STANDARD).set_face(face))
 
 
 class Tile:
@@ -183,14 +188,14 @@ class Tile:
 
 
 farmer = Tile("FARMER", 3, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.STANDARD)])))
+    turn_start_function=add_roll_dice([DiceType.STANDARD])))
 guard = Tile("GUARD", 3, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.TWO)))
 indentured_worker = Tile("INDENTURED WORKER", 3, TileType.YELLOW, ability=Ability(
     on_claim_function=add_scarabs(1),
-    turn_start_function=add_roll_dice([get_die(DiceType.IMMEDIATE)])))
+    turn_start_function=add_roll_dice([DiceType.IMMEDIATE])))
 serf = Tile("SERF", 3, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.SERF)])))
+    turn_start_function=add_roll_dice([DiceType.SERF])))
 worker = Tile("WORKER", 3, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.ONE)))
 beggar = Tile("BEGGAR", 3, TileType.BLUE, ability=Ability(
@@ -204,16 +209,16 @@ ankh = Tile("ANKH", 3, TileType.RED, ability=Ability(
 omen = Tile("OMEN", 3, TileType.RED, ability=Ability(
     on_claim_function=omen_ability))
 ancestral_guidance = Tile("ANCESTRAL GUIDANCE", 3, TileType.RED, ability=Ability(
-    activation_function=ancestral_guidance_ability))
+    activation_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(2))))
 
 artisan = Tile("ARTISAN", 4, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.ARTISAN)])))
+    turn_start_function=add_roll_dice([DiceType.ARTISAN])))
 builder = Tile("BUILDER", 4, TileType.YELLOW, ability=Ability(
-    turn_start_function=both(add_roll_dice([get_die(DiceType.IMMEDIATE)]), add_scarabs(1))))
+    turn_start_function=both(add_roll_dice([DiceType.IMMEDIATE]), add_scarabs(1))))
 noble_adoption = Tile("NOBLE ADOPTION", 4, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.NOBLE)])))
+    turn_start_function=add_roll_dice([DiceType.NOBLE])))
 palace_servants = Tile("PALACE SERVANTS", 4, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.IMMEDIATE) for _ in range(2)])))
+    turn_start_function=add_roll_dice([DiceType.IMMEDIATE for _ in range(2)])))
 soldier = Tile("SOLDIER", 4, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.THREE)))
 grain_merchant = Tile("GRAIN MERCHANT", 4, TileType.BLUE, ability=Ability(
@@ -224,19 +229,24 @@ matchmaker = Tile("MATCHMAKER", 4, TileType.BLUE, ability=Ability(
     activation_function=matchmaker_ability))
 good_omen = Tile("GOOD OMEN", 4, TileType.RED, ability=Ability(
     on_claim_function=good_omen_ability))
-palace_key = Tile("PALACE KEY", 4, TileType.RED)
-spirit_of_the_dead = Tile("SPIRIT OF THE DEAD", 4, TileType.RED)
+palace_key = Tile("PALACE KEY", 4, TileType.RED, ability=Ability(
+    activation_function=add_roll_dice([DiceType.STANDARD for _ in range(2)]),
+    activation_window=[TurnStep.TURN_START]))
+spirit_of_the_dead = Tile("SPIRIT OF THE DEAD", 4, TileType.RED, ability=Ability(
+    activation_function=add_locked_wild_die,
+    activation_restriction=lambda p, g: p.locked_all,
+    activation_window=[TurnStep.LOCK]))
 
 charioteer = Tile("CHARIOTEER", 5, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.FIVE)))
 conspirator = Tile("CONSPIRATOR", 5, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.INTRIGUE)])))
+    turn_start_function=add_roll_dice([DiceType.INTRIGUE])))
 overseer = Tile("OVERSEER", 5, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.FOUR)))
 ship_captain = Tile("SHIP CAPTAIN", 5, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.VOYAGE)])))
+    turn_start_function=add_roll_dice([DiceType.VOYAGE])))
 tomb_builder = Tile("TOMB BUILDER", 5, TileType.YELLOW, ability=Ability(
-    turn_start_function=both(add_roll_dice([get_die(DiceType.STANDARD)]), add_scarabs(1))))
+    turn_start_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(1))))
 head_servant = Tile("HEAD SERVANT", 5, TileType.BLUE)
 master_artisan = Tile("MASTER ARTISAN", 5, TileType.BLUE)
 priest = Tile("PRIEST", 5, TileType.BLUE)
@@ -250,10 +260,10 @@ estate_overseer = Tile("ESTATE OVERSEER", 6, TileType.YELLOW, ability=Ability(
     turn_start_function=add_scarabs(1),
     activation_function=add_incremental_die))
 grain_trader = Tile("GRAIN TRADER", 6, TileType.YELLOW, ability=Ability(
-    turn_start_function=both(add_roll_dice([get_die(DiceType.STANDARD)]), add_scarabs(2))))
+    turn_start_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(2))))
 priest_of_the_dead = Tile("PRIEST OF THE DEAD", 6, TileType.YELLOW)
 royal_attendents = Tile("ROYAL ATTENDENTS", 6, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.STANDARD), get_die(DiceType.IMMEDIATE)])))
+    turn_start_function=add_roll_dice([DiceType.STANDARD, DiceType.IMMEDIATE])))
 astrologer = Tile("ASTROLOGER", 6, TileType.BLUE, ability=Ability(
     activation_function=rearrange_dice(3)))
 priestess = Tile("PRIESTESS", 6, TileType.BLUE)
@@ -263,11 +273,11 @@ secret_passage = Tile("SECRET PASSAGE", 6, TileType.RED)
 treasure = Tile("TREASURE", 6, TileType.RED)
 
 general = Tile("GENERAL", 7, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.STANDARD) for _ in range(2)])))
+    turn_start_function=add_roll_dice([DiceType.STANDARD for _ in range(2)])))
 grand_vizier = Tile("GRAND VIZIER", 7, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.DECREE)])))
+    turn_start_function=add_roll_dice([DiceType.DECREE])))
 granary_master = Tile("GRANARY MASTER", 7, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.STANDARD)]),
+    turn_start_function=add_roll_dice([DiceType.STANDARD]),
     activation_function=add_incremental_die))
 heir = Tile("HEIR", 7, TileType.BLUE)
 royal_astrologer = Tile("ROYAL ASTROLOGER", 7, TileType.BLUE)
@@ -279,7 +289,7 @@ royal_power = Tile("ROYAL POWER", 7, TileType.RED)
 queen = Tile("QUEEN", 7, TileType.YELLOW)
 herder = Tile("HERDER", 1, TileType.YELLOW)
 start = Tile("START", 0, TileType.YELLOW, ability=Ability(
-    turn_start_function=add_roll_dice([get_die(DiceType.STANDARD) for _ in range(3)])))
+    turn_start_function=add_roll_dice([DiceType.STANDARD for _ in range(3)])))
 
 tiles = [farmer, guard, indentured_worker, serf, worker, beggar, servant, soothsayer, ankh, omen, ancestral_guidance, artisan, builder, noble_adoption, palace_servants, soldier, grain_merchant, entertainer, matchmaker, good_omen, palace_key, spirit_of_the_dead, charioteer, conspirator, overseer, ship_captain, tomb_builder, head_servant,
          master_artisan, priest, bad_omen, burial_mask, royal_decree, embalmer, estate_overseer, grain_trader, priest_of_the_dead, royal_attendents, astrologer, priestess, surveyor, pharaohs_gift, secret_passage, treasure, general, grand_vizier, granary_master, heir, royal_astrologer, royal_mother, queens_favor, royal_death, royal_power]
