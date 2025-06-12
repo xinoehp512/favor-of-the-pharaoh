@@ -337,8 +337,8 @@ class Player:
                 try:
                     selected_action.function(self, game)
                     self.resolve_powers_rolled(game)
-                except SelectionException:
-                    print("Must select at least one die to roll!")
+                except SelectionException as e:
+                    print(e.args)
                 except PipUpException:
                     print("Can't pip-up that die!")
                 except RearrangementException:

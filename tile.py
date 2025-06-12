@@ -131,6 +131,18 @@ def entertainer_ability(player: Player, game: Game, tile: Tile):
         die.flip()
 
 
+def matchmaker_ability(player: Player, game: Game, tile: Tile):
+    locked_values = [to_value(die.face) for die in player.locked_dice if to_value(die.face) != DiceValue.NULL]
+    possible_matches = [die for die in player.available_dice if any(to_value(face) in locked_values for face in die.faces)]
+    if len(possible_matches) == 0:
+        raise SelectionException("No possible matches!")
+    die_to_adjust = player.agent.choose_dice(player, game, 1, message="Choose a die to match a locked die:")[0]
+    print("Choose a face from among locked dice:")
+    options = [face for face in die_to_adjust.faces if to_value(face) in locked_values]
+    face_to_match = player.agent.choose_item(options)
+    die_to_adjust.set_face(face_to_match)
+
+
 class Tile:
     tile_color_dict = {
         TileType.YELLOW: 226,
@@ -208,7 +220,8 @@ grain_merchant = Tile("GRAIN MERCHANT", 4, TileType.BLUE, ability=Ability(
     activation_function=grain_merchant_ability))
 entertainer = Tile("ENTERTAINER", 4, TileType.BLUE, ability=Ability(
     activation_function=entertainer_ability))
-matchmaker = Tile("MATCHMAKER", 4, TileType.BLUE)
+matchmaker = Tile("MATCHMAKER", 4, TileType.BLUE, ability=Ability(
+    activation_function=matchmaker_ability))
 good_omen = Tile("GOOD OMEN", 4, TileType.RED, ability=Ability(
     on_claim_function=good_omen_ability))
 palace_key = Tile("PALACE KEY", 4, TileType.RED)
