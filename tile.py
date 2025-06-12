@@ -54,6 +54,33 @@ def both(*args: AbilityFunction):
     return func
 
 
+def servant_ability(player: Player, game: Game, tile: Tile):
+    chosen_die = player.agent.choose_dice(player, game, 1, message="Choose die to pipup:")[0]
+    amount = player.agent.choose_item([1, 2, 3])
+    chosen_die.pipup(amount)
+
+
+def rearrange_dice(amount: int):
+    def func(player: Player, game: Game, tile: Tile):
+        chosen_dice = player.agent.choose_dice(player, game, amount, message="Choose dice to rearrange pips:")
+        if any(to_value(die.face) is DiceValue.NULL for die in chosen_dice):
+            print("Can't move pips on non-numeric faces!")
+            return
+        try:
+            total_sum = sum(to_value(die.face).value for die in chosen_dice)
+            rearrangement = player.agent.choose_rearrangement(player, game, chosen_dice, total_sum)
+            for die, face in rearrangement:
+                die.set_face(face)
+        except ValueError as e:
+            print("Rearrangement Failed!")
+            print(e.args)
+    return func
+
+
+def ankh_ability(player: Player, game: Game, tile: Tile):
+    player.add_scarabs(player.token_count)
+
+
 class Tile:
     tile_color_dict = {
         TileType.YELLOW: 226,
@@ -98,6 +125,7 @@ farmer = Tile("FARMER", 3, TileType.YELLOW, ability=Ability(
 guard = Tile("GUARD", 3, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.TWO)))
 indentured_worker = Tile("INDENTURED WORKER", 3, TileType.YELLOW, ability=Ability(
+    on_claim_function=add_scarabs(1),
     turn_start_function=add_roll_dice([get_die(DiceType.IMMEDIATE)])))
 serf = Tile("SERF", 3, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([get_die(DiceType.SERF)])))
@@ -105,8 +133,10 @@ worker = Tile("WORKER", 3, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.ONE)))
 beggar = Tile("BEGGAR", 3, TileType.BLUE, ability=Ability(
     turn_start_function=add_scarabs(1)))
-servant = Tile("SERVANT", 3, TileType.BLUE)
-soothsayer = Tile("SOOTHSAYER", 3, TileType.BLUE)
+servant = Tile("SERVANT", 3, TileType.BLUE, ability=Ability(
+    activation_function=servant_ability))
+soothsayer = Tile("SOOTHSAYER", 3, TileType.BLUE, ability=Ability(
+    activation_function=rearrange_dice(2)))
 ankh = Tile("ANKH", 3, TileType.RED)
 omen = Tile("OMEN", 3, TileType.RED)
 ancestral_guidance = Tile("ANCESTRAL GUIDANCE", 3, TileType.RED)
@@ -155,7 +185,8 @@ grain_trader = Tile("GRAIN TRADER", 6, TileType.YELLOW, ability=Ability(
 priest_of_the_dead = Tile("PRIEST OF THE DEAD", 6, TileType.YELLOW)
 royal_attendents = Tile("ROYAL ATTENDENTS", 6, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([get_die(DiceType.STANDARD), get_die(DiceType.IMMEDIATE)])))
-astrologer = Tile("ASTROLOGER", 6, TileType.BLUE)
+astrologer = Tile("ASTROLOGER", 6, TileType.BLUE, ability=Ability(
+    activation_function=rearrange_dice(3)))
 priestess = Tile("PRIESTESS", 6, TileType.BLUE)
 surveyor = Tile("SURVEYOR", 6, TileType.BLUE)
 pharaohs_gift = Tile("PHARAOH'S GIFT", 6, TileType.RED)

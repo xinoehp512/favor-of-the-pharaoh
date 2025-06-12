@@ -1,5 +1,6 @@
 from __future__ import annotations
 from collections.abc import Callable
+import itertools
 import random
 from dice import Die, PipUpException
 from display import COLOR, FOREGROUND, RESET
@@ -7,7 +8,7 @@ from enums import *
 from tile import Tile
 
 
-from typing import TYPE_CHECKING, List, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 if TYPE_CHECKING:
     from main import Game
 
@@ -23,7 +24,7 @@ class Action:
 def pipup_function(player: Player, game: Game):
     if ScarabType.PIPUP not in player.tokens:
         raise Exception("No pip-up scarab!")
-    player.agent.choose_dice(player, game, 1, message="Choose die to pipup:")[0].pipup()
+    player.agent.choose_dice(player, game, 1, message="Choose die to pipup:")[0].pipup(1)
     player.tokens.remove(ScarabType.PIPUP)
 
 
@@ -90,7 +91,7 @@ class Agent:
             chosen_dice = [available_dice[i - 1] for i in selections]
             return chosen_dice
 
-    def choose_item(self, options: List[T], display: Callable[[T], str] = str) -> T:
+    def choose_item(self, options: list[T], display: Callable[[T], str] = str) -> T:
         """
         Prompts the user to choose an item from the provided options list.
 
@@ -120,6 +121,62 @@ class Agent:
             else:
                 print("Choice out of range. Try again.")
 
+    def choose_rearrangement(self, player: Player, game: Game, dice: list[Die], target_sum: int) -> list[tuple[Die, DiceFace]]:
+
+        def is_valid_face(face: DiceFace) -> bool:
+            return face.value in range(1, 7) or face == DiceFace.STAR_ONE
+
+        def face_effective_value(face: DiceFace) -> int:
+            return 1 if face == DiceFace.STAR_ONE else face.value
+
+        # Validate input dice
+        for die in dice:
+            if not is_valid_face(die.face):
+                raise ValueError(f"Invalid die face: {die.face}. Only 1–6 are allowed.")
+
+        # Collect valid faces for each die
+        valid_face_options: list[list[DiceFace]] = []
+        for die in dice:
+            valid_faces = [face for face in die.faces if is_valid_face(face)]
+            if not valid_faces:
+                raise ValueError(f"No valid numeric faces for die: {die}")
+            valid_face_options.append(valid_faces)
+
+        # Generate all combinations
+        all_combinations = list(itertools.product(*valid_face_options))
+
+        # Filter combinations that match the original sum
+        seen_signatures: set[tuple[tuple[int, str], ...]] = set()
+        valid_combinations: list[tuple[DiceFace, ...]] = []
+        for combo in all_combinations:
+            if sum(face_effective_value(face) for face in combo) == target_sum:
+                # Create a sorted signature to eliminate equivalent sets
+                signature = tuple(sorted((die.dice_type.value, face.name) for die, face in zip(dice, combo)))
+                if signature not in seen_signatures:
+                    seen_signatures.add(signature)
+                    valid_combinations.append(combo)
+
+        if not valid_combinations:
+            raise ValueError("No valid rearrangements preserve the original sum.")
+
+        # Present options to user
+        print("\nValid rearrangements:")
+        for idx, combo in enumerate(valid_combinations):
+            faces_str = ', '.join(f"{die.clone().set_face(face)}" for die, face in zip(dice, combo))
+            print(f"{idx}: {faces_str}")
+
+        # User selection
+        while True:
+            try:
+                choice = int(input("Choose the index of the rearrangement to use: "))
+                if 0 <= choice < len(valid_combinations):
+                    selected_faces = valid_combinations[choice]
+                    return list(zip(dice, selected_faces))
+                else:
+                    print("Invalid index. Try again.")
+            except ValueError:
+                print("Invalid input. Please enter a valid integer.")
+
     def __str__(self) -> str:
         return COLOR(self.color, self.name)
     __repr__ = __str__
@@ -136,6 +193,7 @@ class Player:
         self.locked_dice: list[Die] = []
         self.prepared_dice: list[Die] = []
         self.tokens: list[ScarabType] = []
+        self.step = TurnStep.NONE
         self.add_scarabs(starting_tokens)
 
     @property
@@ -145,6 +203,10 @@ class Player:
     @property
     def reroll_amount(self):
         return self.tokens.count(ScarabType.REROLL)
+
+    @property
+    def token_count(self):
+        return len(self.tokens)
 
     def add_scarabs(self, amount: int):
         for _ in range(amount):
@@ -186,12 +248,14 @@ class Player:
 
         # Turn Start
         print(f"===={self.agent}'s turn!====")
+        self.step = TurnStep.TURN_START
         for tile in self.tiles:
             if tile.type in [TileType.YELLOW, TileType.BLUE]:
                 tile.disabled = False
             if tile.ability.turn_start is not None:
                 tile.ability.turn_start(self, game, tile)
                 tile.value = 0
+        self.step = TurnStep.ROLLS
         while self.prepared_dice:
             # Roll
             for die in self.prepared_dice:
@@ -272,6 +336,7 @@ class Player:
                 except PipUpException:
                     print("Can't pip-up that die!")
         # Claim Phase
+        self.step = TurnStep.CLAIM
         dice_values = [to_value(die.face) for die in self.locked_dice]
         dice_amount = len(self.locked_dice)
         print(f"{self.agent} finished their roll with {dice_values} locked.")

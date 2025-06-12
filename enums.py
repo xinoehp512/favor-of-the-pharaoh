@@ -28,6 +28,14 @@ def one_higher(value: DiceValue):
     return DiceValue(value.value+1)
 
 
+def x_higher(x: int, value: DiceValue):
+    if value == DiceValue.NULL:
+        return DiceValue.NULL
+    if value.value+x > 6:
+        return DiceValue.NULL
+    return DiceValue(value.value+x)
+
+
 class DiceFace(Enum):
     ONE = 1
     TWO = 2
@@ -69,3 +77,11 @@ class DiceType(Enum):
 class ScarabType(Enum):
     REROLL = 0
     PIPUP = 1
+
+
+class TurnStep(Enum):
+    TURN_START = 0
+    ROLLS = 1
+    CLAIM = 2
+
+    NONE = -1

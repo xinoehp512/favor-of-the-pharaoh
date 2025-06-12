@@ -91,6 +91,8 @@ class Game:
             player.add_scarabs(1)
         if tile.type == TileType.RED:
             player.add_scarabs(2)
+        if tile.ability.on_claim is not None:
+            tile.ability.on_claim(player, self, tile)
 
     def play_game(self):
         print(BOLD+"Welcome to Favor of the Pharaoh!"+RESET)
@@ -106,7 +108,7 @@ tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start, artisan, conspirator, ship_captain, grand_vizier], Agent("Player 1", 4), starting_tokens=10)
+    player = Player([start, artisan, soothsayer, astrologer], Agent("Player 1", 4), starting_tokens=10)
     player2 = Player([start], Agent("Player 2", 1), starting_tokens=10)
     game = Game([player, player2])
     random.seed(1)

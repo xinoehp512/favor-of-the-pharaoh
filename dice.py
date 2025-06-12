@@ -35,11 +35,10 @@ class Die:
     def faces(self):
         return [face for pair in self.face_pairs for face in pair]
 
-    @property
-    def can_pipup(self):
+    def can_pipup_x(self, x: int):
         if self.face == DiceFace.NULL:
             return False
-        return self.has_value(one_higher(to_value(self.face)))
+        return self.has_value(x_higher(x, to_value(self.face)))
 
     def get_flipped(self, face: DiceFace):
         if not self.has_face(face):
@@ -60,10 +59,10 @@ class Die:
             self.power_triggered = True
         return self.face
 
-    def pipup(self):
-        if not self.can_pipup:
+    def pipup(self, x: int):
+        if not self.can_pipup_x(x):
             raise PipUpException(f"Can't Pipup {self.face} on {self.dice_type}")
-        new_value = one_higher(to_value(self.face))
+        new_value = x_higher(x, to_value(self.face))
         for face in self.faces:
             if to_value(face) == new_value:
                 self.set_face(face)
