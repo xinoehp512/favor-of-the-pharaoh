@@ -38,14 +38,16 @@ reroll_color = 2
 pipup_action = Action(f"Use {COLOR(pipup_color, "Pip-up")} Token", pipup_function)
 reroll_action = Action(f"Use {COLOR(reroll_color, "Reroll")} Token", reroll_function)
 
+DiceConstraint = Callable[[Die], bool]
+
 
 class Agent:
     def __init__(self, name: str, color: int) -> None:
         self.name = name
         self.color = color
 
-    def choose_dice(self, player: Player, game: Game, amount: int, maximum: int | None = -1, message: str = "Choose dice:") -> list[Die]:
-        available_dice = player.available_dice
+    def choose_dice(self, player: Player, game: Game, amount: int, maximum: int | None = -1, message: str = "Choose dice:", constraint: DiceConstraint = lambda d: True) -> list[Die]:
+        available_dice = [die for die in player.available_dice if constraint(die)]
 
         if amount > len(available_dice):
             raise ValueError(f"Cannot choose {amount} dice from only {len(available_dice)} available.")
@@ -175,6 +177,13 @@ class Agent:
             except ValueError:
                 print("Invalid input. Please enter a valid integer.")
 
+    def adjust_die_to_other(self, die_to_adjust: Die):
+        face_options = sorted(die_to_adjust.faces, key=lambda f: f.value)
+        face_options.remove(die_to_adjust.face)
+        print("Choose a new face:")
+        new_face = self.choose_item(face_options)
+        die_to_adjust.set_face(new_face)
+
     def __str__(self) -> str:
         return COLOR(self.color, self.name)
     __repr__ = __str__
@@ -237,11 +246,7 @@ class Player:
                 response = self.agent.choose_dice(
                     self, game, 0, maximum=amount, message=f"Choose up to {"two dice" if face == DiceFace.TWO_STAR else "one die"} to adjust:")
                 for die_to_adjust in response:
-                    face_options = die_to_adjust.faces
-                    face_options.remove(die_to_adjust.face)
-                    print("Choose a new face:")
-                    new_face = self.agent.choose_item(face_options)
-                    die_to_adjust.set_face(new_face)
+                    self.agent.adjust_die_to_other(die_to_adjust)
 
             powers_triggered = [die for die in self.available_dice if die.power_triggered]
             print(f'Rolled Dice: {self.available_dice}')

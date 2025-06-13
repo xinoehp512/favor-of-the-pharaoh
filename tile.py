@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections.abc import Callable
-from dice import get_die
+from dice import Die, get_die
 from display import COLOR
 from enums import *
 
@@ -144,8 +144,17 @@ def matchmaker_ability(player: Player, game: Game, tile: Tile):
 
 def add_locked_wild_die(player: Player, game: Game, tile: Tile):
     print("Choose the dice value")
-    face = player.agent.choose_item(get_die(DiceType.STANDARD).faces)
+    face = player.agent.choose_item(sorted(get_die(DiceType.STANDARD).faces, key=lambda v: v.value))
     player.locked_dice.append(get_die(DiceType.STANDARD).set_face(face))
+
+
+def free_adjust_types(condition: Callable[[Die], bool]):
+    def func(player: Player, game: Game, tile: Tile):
+        dice_to_adjust = player.agent.choose_dice(player, game, 0, maximum=None,
+                                                  message="Choose dice to adjust", constraint=condition)
+        for die in dice_to_adjust:
+            player.agent.adjust_die_to_other(die)
+    return func
 
 
 class Tile:
@@ -247,7 +256,8 @@ ship_captain = Tile("SHIP CAPTAIN", 5, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.VOYAGE])))
 tomb_builder = Tile("TOMB BUILDER", 5, TileType.YELLOW, ability=Ability(
     turn_start_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(1))))
-head_servant = Tile("HEAD SERVANT", 5, TileType.BLUE)
+head_servant = Tile("HEAD SERVANT", 5, TileType.BLUE, ability=Ability(
+    activation_function=free_adjust_types(lambda d: d.dice_type == DiceType.IMMEDIATE)))
 master_artisan = Tile("MASTER ARTISAN", 5, TileType.BLUE)
 priest = Tile("PRIEST", 5, TileType.BLUE)
 bad_omen = Tile("BAD OMEN", 5, TileType.RED)
@@ -280,7 +290,8 @@ granary_master = Tile("GRANARY MASTER", 7, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD]),
     activation_function=add_incremental_die))
 heir = Tile("HEIR", 7, TileType.BLUE)
-royal_astrologer = Tile("ROYAL ASTROLOGER", 7, TileType.BLUE)
+royal_astrologer = Tile("ROYAL ASTROLOGER", 7, TileType.BLUE, ability=Ability(
+    activation_function=free_adjust_types(lambda d: d.dice_type != DiceType.STANDARD)))
 royal_mother = Tile("ROYAL MOTHER", 7, TileType.BLUE)
 queens_favor = Tile("QUEEN'S FAVOR", 7, TileType.RED)
 royal_death = Tile("ROYAL DEATH", 7, TileType.RED)

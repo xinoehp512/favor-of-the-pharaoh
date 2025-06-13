@@ -111,7 +111,8 @@ tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start, spirit_of_the_dead], Agent("Player 1", 4), starting_tokens=10)
+    player = Player([start, palace_servants, serf, artisan, conspirator, ship_captain, noble_adoption,
+                    grand_vizier, royal_astrologer], Agent("Player 1", 4), starting_tokens=10)
     player2 = Player([start], Agent("Player 2", 1), starting_tokens=10)
     game = Game([player, player2])
     random.seed(1)
