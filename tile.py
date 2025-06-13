@@ -194,11 +194,11 @@ def surveyor_ability(player: Player, game: Game, tile: Tile):
 
 
 def secret_passage_ability(player: Player, game: Game, tile: Tile):
-
+    lv_3_tiles = game.get_available_tiles(player, lambda tile: tile.level == 3)
     try:
-        choices = player.agent.choose_items("Choose 2 Level 3 Tiles:", game.get_available_tiles(player, 3), 0, 2)
+        choices = player.agent.choose_items("Choose 2 Level 3 Tiles:", lv_3_tiles, 0, 2)
     except ValueError:
-        choices = game.get_available_tiles(player, 3)
+        choices = lv_3_tiles
     if not choices:
         print("No Tiles Claimed!")
         return
@@ -211,8 +211,38 @@ def treasure_ability(player: Player, game: Game, tile: Tile):
         player, game, 1, None, message="Select dice for group 1 (the rest will be in group 2):", source=player.locked_dice)
     group_2 = [die for die in player.locked_dice if die not in group_1]
     tile.disabled = True
-    player.claim_tile(game, group_1)
-    player.claim_tile(game, group_2)
+    player.claim_tile(game, group_1, restriction=lambda tile: tile.type is not TileType.RED)
+    player.claim_tile(game, group_2, restriction=lambda tile: tile.type is not TileType.RED)
+
+
+def royal_mother_ability(player: Player, game: Game, tile: Tile):
+    swap_dice = player.agent.choose_dice(player, game, 0, None, message="Choose any number of Immediate and Serf dice to replace:",
+                                         constraint=lambda d: d.dice_type in (DiceType.IMMEDIATE, DiceType.SERF))
+    player.add_scarabs(len(swap_dice))
+    for die in swap_dice:
+        player.available_dice.remove(die)
+        player.prepared_dice.append(get_die(DiceType.STANDARD))
+
+
+def queens_favor_ability(player: Player, game: Game, tile: Tile):
+    try:
+        choice = player.agent.choose_items("Choose any blue or yellow tile Level 6 or lower.", game.get_available_tiles(
+            player, lambda tile: tile.level <= 6 and tile.type is not TileType.RED), 1)[0]
+        game.claim_tile(player, choice)
+    except:
+        print("No tiles remain!")
+    game.set_next_turn(player)
+
+
+def royal_power_ability(player: Player, game: Game, tile: Tile):
+    try:
+        choices = player.agent.choose_items("Choose up to 2 blue tiles Level 6 or lower.", game.get_available_tiles(
+            player, lambda tile: tile.level <= 6 and tile.type is TileType.BLUE), 0, 2)
+        for choice in choices:
+            game.claim_tile(player, choice)
+    except:
+        print("No tiles remain!")
+        return
 
 
 class Tile:
@@ -338,7 +368,7 @@ priest_of_the_dead = Tile("PRIEST OF THE DEAD", 6, TileType.YELLOW, ability=Abil
     activation_function=add_locked_wild_die,
     activation_restriction=lambda p, g: p.locked_all,
     activation_window=[TurnStep.LOCK]))
-royal_attendents = Tile("ROYAL ATTENDENTS", 6, TileType.YELLOW, ability=Ability(
+royal_attendants = Tile("ROYAL ATTENDANTS", 6, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD, DiceType.IMMEDIATE])))
 astrologer = Tile("ASTROLOGER", 6, TileType.BLUE, ability=Ability(
     activation_function=rearrange_dice(3)))
@@ -349,7 +379,7 @@ surveyor = Tile("SURVEYOR", 6, TileType.BLUE, ability=Ability(
 pharaohs_gift = Tile("PHARAOH'S GIFT", 6, TileType.RED)
 secret_passage = Tile("SECRET PASSAGE", 6, TileType.RED, ability=Ability(
     activation_function=secret_passage_ability,
-    activation_window=[TurnStep.TURN_START, TurnStep.ROLLS, TurnStep.CLAIM_END]))
+    activation_window=[TurnStep.ROLLS, TurnStep.CLAIM_END]))
 treasure = Tile("TREASURE", 6, TileType.RED, ability=Ability(
     activation_function=treasure_ability,
     activation_window=[TurnStep.CLAIM]))
@@ -365,10 +395,14 @@ heir = Tile("HEIR", 7, TileType.BLUE, ability=Ability(activation_function=both(
     plus_x_to_all(1), plus_x_to_all(1))))
 royal_astrologer = Tile("ROYAL ASTROLOGER", 7, TileType.BLUE, ability=Ability(
     activation_function=free_adjust_types(lambda d: d.dice_type != DiceType.STANDARD)))
-royal_mother = Tile("ROYAL MOTHER", 7, TileType.BLUE)
-queens_favor = Tile("QUEEN'S FAVOR", 7, TileType.RED)
+royal_mother = Tile("ROYAL MOTHER", 7, TileType.BLUE, ability=Ability(
+    activation_function=royal_mother_ability))
+queens_favor = Tile("QUEEN'S FAVOR", 7, TileType.RED, ability=Ability(
+    on_claim_function=queens_favor_ability))
 royal_death = Tile("ROYAL DEATH", 7, TileType.RED)
-royal_power = Tile("ROYAL POWER", 7, TileType.RED)
+royal_power = Tile("ROYAL POWER", 7, TileType.RED, ability=Ability(
+    activation_function=royal_power_ability,
+    activation_window=[TurnStep.ROLLS, TurnStep.CLAIM_END]))
 
 queen = Tile("QUEEN", 7, TileType.YELLOW)
 herder = Tile("HERDER", 1, TileType.YELLOW)
@@ -376,4 +410,4 @@ start = Tile("START", 0, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD for _ in range(3)])))
 
 tiles = [farmer, guard, indentured_worker, serf, worker, beggar, servant, soothsayer, ankh, omen, ancestral_guidance, artisan, builder, noble_adoption, palace_servants, soldier, grain_merchant, entertainer, matchmaker, good_omen, palace_key, spirit_of_the_dead, charioteer, conspirator, overseer, ship_captain, tomb_builder, head_servant,
-         master_artisan, priest, bad_omen, burial_mask, royal_decree, embalmer, estate_overseer, grain_trader, priest_of_the_dead, royal_attendents, astrologer, priestess, surveyor, pharaohs_gift, secret_passage, treasure, general, grand_vizier, granary_master, heir, royal_astrologer, royal_mother, queens_favor, royal_death, royal_power]
+         master_artisan, priest, bad_omen, burial_mask, royal_decree, embalmer, estate_overseer, grain_trader, priest_of_the_dead, royal_attendants, astrologer, priestess, surveyor, pharaohs_gift, secret_passage, treasure, general, grand_vizier, granary_master, heir, royal_astrologer, royal_mother, queens_favor, royal_death, royal_power]

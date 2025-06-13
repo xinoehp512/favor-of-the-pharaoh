@@ -123,12 +123,10 @@ class Agent:
                 print("Choice out of range. Try again.")
 
     def choose_items(self, prompt: str, options: list[T], min_amount: int, max_amount: int | None = -1) -> list[T]:
-        if max_amount is None:
+        if max_amount is None or max_amount > len(options):
             max_amount = len(options)
         if max_amount < min_amount:
             max_amount = min_amount
-        if max_amount > len(options):
-            raise ValueError("Cannot choose more items than are available in the list.")
 
         print(prompt)
         for idx, option in enumerate(options):
@@ -290,13 +288,13 @@ class Player:
                 assert tile.ability.activation is not None
                 tile.activate(self, game)
 
-    def claim_tile(self, game: Game, dice: list[Die]):
+    def claim_tile(self, game: Game, dice: list[Die], restriction: Callable[[Tile], bool] = lambda t: True):
         self.step = TurnStep.CLAIM
         dice_values = [to_value(die.face) for die in dice if to_value(die.face) != DiceValue.NULL]
         dice_amount = len(dice)
         tile_options: list[Tile] = []
         for tile, condition in game.get_tiles_conditions():
-            if tile not in self.tiles and game.tile_available(tile) and dice_amount >= tile.level and condition.function(dice_values):
+            if tile not in self.tiles and game.tile_available(tile) and dice_amount >= tile.level and condition.function(dice_values) and restriction(tile):
                 print(f"{self.agent}'s dice fulfill the {condition} condition for the {tile} tile.")
                 tile_options.append(tile)
         if tile_options:
@@ -374,6 +372,8 @@ class Player:
                         print("Immediate Dice must be locked.")
                         continue
                     if not dice_to_lock:
+                        if not self.available_dice:
+                            break
                         print("Dice Locking cancelled.")
                         continue
                     self.locked_dice.extend(dice_to_lock)
