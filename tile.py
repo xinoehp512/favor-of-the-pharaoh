@@ -105,13 +105,13 @@ def omen_ability(player: Player, game: Game, tile: Tile):
             if die.dice_type == DiceType.STANDARD:
                 player.prepared_dice.remove(die)
                 break
-    if player.step == TurnStep.CLAIM:
+    if player.step == TurnStep.CLAIM_END:
         game.set_next_turn(player)
         player.add_effect(Effect(remove_red))
 
 
 def good_omen_ability(player: Player, game: Game, tile: Tile):
-    if player.step == TurnStep.CLAIM:
+    if player.step == TurnStep.CLAIM_END:
         game.set_next_turn(player)
 
 
@@ -181,6 +181,38 @@ def bad_omen_ability(player: Player, game: Game, tile: Tile):
     player.add_effect(Effect(add_red))
     for opponent in game.get_opponents(player):
         opponent.add_effect(Effect(remove_any_2))
+
+
+def surveyor_ability(player: Player, game: Game, tile: Tile):
+    split_die = player.agent.choose_dice(player, game, 1, message="Choose dice to split:",
+                                         constraint=lambda d: is_numeric(d.face) and to_value(d.face).value > 1)[0]
+    player.available_dice.remove(split_die)
+    new_dice = player.agent.choose_rearrangement(player, game, [get_die(DiceType.IMMEDIATE)
+                                                 for _ in range(2)], to_value(split_die.face).value)
+    for die, face in new_dice:
+        player.available_dice.append(die.set_face(face))
+
+
+def secret_passage_ability(player: Player, game: Game, tile: Tile):
+
+    try:
+        choices = player.agent.choose_items("Choose 2 Level 3 Tiles:", game.get_available_tiles(player, 3), 0, 2)
+    except ValueError:
+        choices = game.get_available_tiles(player, 3)
+    if not choices:
+        print("No Tiles Claimed!")
+        return
+    for choice in choices:
+        game.claim_tile(player, choice)
+
+
+def treasure_ability(player: Player, game: Game, tile: Tile):
+    group_1 = player.agent.choose_dice(
+        player, game, 1, None, message="Select dice for group 1 (the rest will be in group 2):", source=player.locked_dice)
+    group_2 = [die for die in player.locked_dice if die not in group_1]
+    tile.disabled = True
+    player.claim_tile(game, group_1)
+    player.claim_tile(game, group_2)
 
 
 class Tile:
@@ -290,7 +322,7 @@ priest = Tile("PRIEST", 5, TileType.BLUE, ability=Ability(
     activation_function=plus_x_to_all(1)))
 bad_omen = Tile("BAD OMEN", 5, TileType.RED, ability=Ability(
     activation_function=bad_omen_ability,
-    activation_window=[TurnStep.CLAIM]))
+    activation_window=[TurnStep.CLAIM_END]))
 burial_mask = Tile("BURIAL MASK", 5, TileType.RED, ability=Ability(
     activation_function=add_scarabs(5)))
 royal_decree = Tile("ROYAL DECREE", 5, TileType.RED)
@@ -302,16 +334,25 @@ estate_overseer = Tile("ESTATE OVERSEER", 6, TileType.YELLOW, ability=Ability(
     activation_function=add_incremental_die))
 grain_trader = Tile("GRAIN TRADER", 6, TileType.YELLOW, ability=Ability(
     turn_start_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(2))))
-priest_of_the_dead = Tile("PRIEST OF THE DEAD", 6, TileType.YELLOW)
+priest_of_the_dead = Tile("PRIEST OF THE DEAD", 6, TileType.YELLOW, ability=Ability(
+    activation_function=add_locked_wild_die,
+    activation_restriction=lambda p, g: p.locked_all,
+    activation_window=[TurnStep.LOCK]))
 royal_attendents = Tile("ROYAL ATTENDENTS", 6, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD, DiceType.IMMEDIATE])))
 astrologer = Tile("ASTROLOGER", 6, TileType.BLUE, ability=Ability(
     activation_function=rearrange_dice(3)))
-priestess = Tile("PRIESTESS", 6, TileType.BLUE)
-surveyor = Tile("SURVEYOR", 6, TileType.BLUE)
+priestess = Tile("PRIESTESS", 6, TileType.BLUE, ability=Ability(
+    activation_function=plus_x_to_all(2)))
+surveyor = Tile("SURVEYOR", 6, TileType.BLUE, ability=Ability(
+    activation_function=surveyor_ability))
 pharaohs_gift = Tile("PHARAOH'S GIFT", 6, TileType.RED)
-secret_passage = Tile("SECRET PASSAGE", 6, TileType.RED)
-treasure = Tile("TREASURE", 6, TileType.RED)
+secret_passage = Tile("SECRET PASSAGE", 6, TileType.RED, ability=Ability(
+    activation_function=secret_passage_ability,
+    activation_window=[TurnStep.TURN_START, TurnStep.ROLLS, TurnStep.CLAIM_END]))
+treasure = Tile("TREASURE", 6, TileType.RED, ability=Ability(
+    activation_function=treasure_ability,
+    activation_window=[TurnStep.CLAIM]))
 
 general = Tile("GENERAL", 7, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD for _ in range(2)])))
@@ -320,7 +361,8 @@ grand_vizier = Tile("GRAND VIZIER", 7, TileType.YELLOW, ability=Ability(
 granary_master = Tile("GRANARY MASTER", 7, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD]),
     activation_function=add_incremental_die))
-heir = Tile("HEIR", 7, TileType.BLUE)
+heir = Tile("HEIR", 7, TileType.BLUE, ability=Ability(activation_function=both(
+    plus_x_to_all(1), plus_x_to_all(1))))
 royal_astrologer = Tile("ROYAL ASTROLOGER", 7, TileType.BLUE, ability=Ability(
     activation_function=free_adjust_types(lambda d: d.dice_type != DiceType.STANDARD)))
 royal_mother = Tile("ROYAL MOTHER", 7, TileType.BLUE)

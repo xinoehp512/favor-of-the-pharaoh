@@ -63,6 +63,10 @@ def to_value(face: DiceFace) -> DiceValue:
     return DiceValue.NULL
 
 
+def is_numeric(face: DiceFace) -> bool:
+    return to_value(face) is not DiceValue.NULL
+
+
 class DiceType(Enum):
     STANDARD = 0
     IMMEDIATE = 1
@@ -83,6 +87,7 @@ class TurnStep(Enum):
     TURN_START = 0
     ROLLS = 1
     CLAIM = 2
-    LOCK = 3
+    CLAIM_END = 3
+    LOCK = 4
 
     NONE = -1

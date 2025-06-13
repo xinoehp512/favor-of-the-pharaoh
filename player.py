@@ -51,7 +51,7 @@ class Agent:
         available_dice = [die for die in (source if source is not None else player.available_dice) if constraint(die)]
 
         if amount > len(available_dice):
-            raise ValueError(f"Cannot choose {amount} dice from only {len(available_dice)} available.")
+            raise SelectionException(f"Cannot choose {amount} dice from only {len(available_dice)} available.")
 
         if maximum is None:
             maximum = len(available_dice)
@@ -122,6 +122,39 @@ class Agent:
             else:
                 print("Choice out of range. Try again.")
 
+    def choose_items(self, prompt: str, options: list[T], min_amount: int, max_amount: int | None = -1) -> list[T]:
+        if max_amount is None:
+            max_amount = len(options)
+        if max_amount < min_amount:
+            max_amount = min_amount
+        if max_amount > len(options):
+            raise ValueError("Cannot choose more items than are available in the list.")
+
+        print(prompt)
+        for idx, option in enumerate(options):
+            print(f"{idx}: {option}")
+
+        while True:
+            try:
+                input_str = input(f"Enter between {min_amount} and {max_amount} distinct number(s), comma-separated: ")
+                indices = [int(i.strip()) for i in input_str.split(',')]
+
+                if not (min_amount <= len(indices) <= max_amount):
+                    print(f"Please enter between {min_amount} and {max_amount} indices.")
+                    continue
+
+                if len(set(indices)) != len(indices):
+                    print("Duplicate selections are not allowed.")
+                    continue
+
+                if any(i < 0 or i >= len(options) for i in indices):
+                    print("One or more indices are out of range.")
+                    continue
+
+                return [options[i] for i in indices]
+            except ValueError:
+                print("Invalid input. Please enter valid integers separated by commas.")
+
     def choose_rearrangement(self, player: Player, game: Game, dice: list[Die], target_sum: int) -> list[tuple[Die, DiceFace]]:
 
         def is_valid_face(face: DiceFace) -> bool:
@@ -129,11 +162,6 @@ class Agent:
 
         def face_effective_value(face: DiceFace) -> int:
             return 1 if face == DiceFace.STAR_ONE else face.value
-
-        # Validate input dice
-        for die in dice:
-            if not is_valid_face(die.face):
-                raise ValueError(f"Invalid die face: {die.face}. Only 1–6 are allowed.")
 
         # Collect valid faces for each die
         valid_face_options: list[list[DiceFace]] = []
@@ -262,6 +290,24 @@ class Player:
                 assert tile.ability.activation is not None
                 tile.activate(self, game)
 
+    def claim_tile(self, game: Game, dice: list[Die]):
+        self.step = TurnStep.CLAIM
+        dice_values = [to_value(die.face) for die in dice if to_value(die.face) != DiceValue.NULL]
+        dice_amount = len(dice)
+        tile_options: list[Tile] = []
+        for tile, condition in game.get_tiles_conditions():
+            if tile not in self.tiles and game.tile_available(tile) and dice_amount >= tile.level and condition.function(dice_values):
+                print(f"{self.agent}'s dice fulfill the {condition} condition for the {tile} tile.")
+                tile_options.append(tile)
+        if tile_options:
+            tile_to_claim = self.agent.choose_item(tile_options)
+            game.claim_tile(self, tile_to_claim)
+            print(f"{tile_to_claim} claimed by {self.agent}!")
+            self.query_optional_activations(game)
+        else:
+            print(f"{self.agent} couldn't claim any tiles! They recieved 2 tokens as compensation.")
+            self.add_scarabs(2)
+
     def take_turn(self, game: Game):
         # Reset Dice Zones
         self.available_dice = []
@@ -366,22 +412,10 @@ class Player:
                 except RearrangementException:
                     print("Rearrangement Failed!")
         # Claim Phase
-        self.step = TurnStep.CLAIM
-        dice_values = [to_value(die.face) for die in self.locked_dice if to_value(die.face) != DiceValue.NULL]
-        dice_amount = len(self.locked_dice)
-        print(f"{self.agent} finished their roll with {dice_values} locked.")
-        tile_options: list[Tile] = []
-        for tile, condition in game.get_tiles_conditions():
-            if tile not in self.tiles and game.tile_available(tile) and dice_amount >= tile.level and condition.function(dice_values):
-                print(f"{self.agent}'s dice fulfill the {condition} condition for the {tile} tile.")
-                tile_options.append(tile)
-        if tile_options:
-            tile_to_claim = self.agent.choose_item(tile_options)
-            game.claim_tile(self, tile_to_claim)
-            print(f"{tile_to_claim} claimed by {self.agent}!")
-        else:
-            print(f"{self.agent} couldn't claim any tiles! They recieved 2 tokens as compensation.")
-            self.add_scarabs(2)
+
+        print(f"{self.agent} finished their roll with {self.locked_dice} locked.")
+        self.claim_tile(game, self.locked_dice)
+        self.step = TurnStep.CLAIM_END
         self.query_optional_activations(game)
 
         print(f"====End of {self.agent}'s turn!====")

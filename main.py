@@ -69,6 +69,9 @@ class Game:
         else:
             return b_rows[level-3][idx]
 
+    def get_available_tiles(self, player: Player, level: int) -> list[Tile]:
+        return [tile for tile in self.tiles[level] if tile not in player.tiles and self.tile_available(tile)]
+
     def print_tiles(self):
         for level in range(7, 2, -1):
             print(f"Level {level} Tiles ({self.get_row_mode(level).name} side): {self.tiles[level]}")
@@ -114,9 +117,9 @@ tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start, priest, burial_mask], Agent("Player 1", 4), starting_tokens=10)
-    player2 = Player([start], Agent("Player 2", 1), starting_tokens=10)
-    random.seed(1)
+    player = Player([start, treasure, heir, artisan, general, royal_attendents, entertainer], Agent("Player 1", 4), starting_tokens=0)
+    player2 = Player([start], Agent("Player 2", 1), starting_tokens=1)
+    random.seed(2)
     game = Game([player, player2])
     game.play_game()
     # print(game.get_tiles_conditions())
