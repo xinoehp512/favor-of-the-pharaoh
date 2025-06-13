@@ -55,6 +55,9 @@ class Game:
             for tile in tiles:
                 self.amounts[tile] = amount_by_level[level]
 
+    def get_opponents(self, player: Player):
+        return [p for p in self.players if p != player]
+
     def get_row_mode(self, level: int):
         return self.modes[level-3]
 
@@ -111,11 +114,10 @@ tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start, palace_servants, serf, artisan, conspirator, ship_captain, noble_adoption,
-                    grand_vizier, royal_astrologer], Agent("Player 1", 4), starting_tokens=10)
+    player = Player([start, priest, burial_mask], Agent("Player 1", 4), starting_tokens=10)
     player2 = Player([start], Agent("Player 2", 1), starting_tokens=10)
-    game = Game([player, player2])
     random.seed(1)
+    game = Game([player, player2])
     game.play_game()
     # print(game.get_tiles_conditions())
 

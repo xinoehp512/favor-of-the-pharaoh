@@ -46,8 +46,9 @@ class Agent:
         self.name = name
         self.color = color
 
-    def choose_dice(self, player: Player, game: Game, amount: int, maximum: int | None = -1, message: str = "Choose dice:", constraint: DiceConstraint = lambda d: True) -> list[Die]:
-        available_dice = [die for die in player.available_dice if constraint(die)]
+    def choose_dice(self, player: Player, game: Game, amount: int, maximum: int | None = -1, message: str = "Choose dice:", constraint: DiceConstraint = lambda d: True, source: list[Die] | None = None) -> list[Die]:
+
+        available_dice = [die for die in (source if source is not None else player.available_dice) if constraint(die)]
 
         if amount > len(available_dice):
             raise ValueError(f"Cannot choose {amount} dice from only {len(available_dice)} available.")
@@ -366,7 +367,7 @@ class Player:
                     print("Rearrangement Failed!")
         # Claim Phase
         self.step = TurnStep.CLAIM
-        dice_values = [to_value(die.face) for die in self.locked_dice]
+        dice_values = [to_value(die.face) for die in self.locked_dice if to_value(die.face) != DiceValue.NULL]
         dice_amount = len(self.locked_dice)
         print(f"{self.agent} finished their roll with {dice_values} locked.")
         tile_options: list[Tile] = []

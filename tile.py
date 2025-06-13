@@ -157,6 +157,32 @@ def free_adjust_types(condition: Callable[[Die], bool]):
     return func
 
 
+def master_artisan_ability(player: Player, game: Game, tile: Tile):
+    die_to_adjust = player.agent.choose_dice(player, game, 1, message="Choose die to adjust")[0]
+    player.agent.adjust_die_to_other(die_to_adjust)
+
+
+def plus_x_to_all(x: int):
+    def func(player: Player, game: Game, tile: Tile):
+        chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None, message=f"Choose dice to add {x} to:")
+        for die in chosen_dice:
+            die.pipup(x)
+    return func
+
+
+def bad_omen_ability(player: Player, game: Game, tile: Tile):
+    def add_red(player: Player, game: Game):
+        player.prepared_dice.append(get_die(DiceType.STANDARD))
+
+    def remove_any_2(player: Player, game: Game):
+        dice_to_lose = player.agent.choose_dice(player, game, 2, message="Choose dice to lose for the turn", source=player.prepared_dice)
+        for die in dice_to_lose:
+            player.prepared_dice.remove(die)
+    player.add_effect(Effect(add_red))
+    for opponent in game.get_opponents(player):
+        opponent.add_effect(Effect(remove_any_2))
+
+
 class Tile:
     tile_color_dict = {
         TileType.YELLOW: 226,
@@ -258,10 +284,15 @@ tomb_builder = Tile("TOMB BUILDER", 5, TileType.YELLOW, ability=Ability(
     turn_start_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(1))))
 head_servant = Tile("HEAD SERVANT", 5, TileType.BLUE, ability=Ability(
     activation_function=free_adjust_types(lambda d: d.dice_type == DiceType.IMMEDIATE)))
-master_artisan = Tile("MASTER ARTISAN", 5, TileType.BLUE)
-priest = Tile("PRIEST", 5, TileType.BLUE)
-bad_omen = Tile("BAD OMEN", 5, TileType.RED)
-burial_mask = Tile("BURIAL MASK", 5, TileType.RED)
+master_artisan = Tile("MASTER ARTISAN", 5, TileType.BLUE, ability=Ability(
+    activation_function=master_artisan_ability))
+priest = Tile("PRIEST", 5, TileType.BLUE, ability=Ability(
+    activation_function=plus_x_to_all(1)))
+bad_omen = Tile("BAD OMEN", 5, TileType.RED, ability=Ability(
+    activation_function=bad_omen_ability,
+    activation_window=[TurnStep.CLAIM]))
+burial_mask = Tile("BURIAL MASK", 5, TileType.RED, ability=Ability(
+    activation_function=add_scarabs(5)))
 royal_decree = Tile("ROYAL DECREE", 5, TileType.RED)
 
 embalmer = Tile("EMBALMER", 6, TileType.YELLOW, ability=Ability(
