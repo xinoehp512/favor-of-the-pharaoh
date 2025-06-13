@@ -120,7 +120,7 @@ tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start, general, royal_attendants, palace_key, entertainer, heir], Agent("Player 1", 4), starting_tokens=0)
+    player = Player([start, queen], Agent("Player 1", 4), starting_tokens=0)
     player2 = Player([start], Agent("Player 2", 1), starting_tokens=1)
     random.seed(1)
     game = Game([player, player2])

@@ -61,6 +61,12 @@ def add_value_die(face: DiceFace):
     return func
 
 
+def add_wild_die(player: Player, game: Game, tile: Tile):
+    print("Choose the dice value")
+    face = player.agent.choose_item(sorted(get_die(DiceType.STANDARD).faces, key=lambda v: v.value))
+    player.available_dice.append(get_die(DiceType.STANDARD).set_face(face))
+
+
 def add_incremental_die(player: Player, game: Game, tile: Tile):
     player.available_dice.append(get_die(DiceType.STANDARD).set_face(DiceFace(tile.value)))
 
@@ -404,8 +410,12 @@ royal_power = Tile("ROYAL POWER", 7, TileType.RED, ability=Ability(
     activation_function=royal_power_ability,
     activation_window=[TurnStep.ROLLS, TurnStep.CLAIM_END]))
 
-queen = Tile("QUEEN", 7, TileType.YELLOW)
-herder = Tile("HERDER", 1, TileType.YELLOW)
+queen = Tile("QUEEN", 7, TileType.YELLOW, ability=Ability(
+    activation_function=add_wild_die))
+herder = Tile("HERDER", 1, TileType.YELLOW, ability=Ability(
+    activation_function=add_roll_dice([DiceType.STANDARD]),
+    activation_restriction=lambda p, g: p.locked_pair,
+    activation_window=[TurnStep.LOCK]))
 start = Tile("START", 0, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD for _ in range(3)])))
 

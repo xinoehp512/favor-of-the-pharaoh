@@ -39,6 +39,10 @@ class Die:
     def values(self):
         return [to_value(face) for face in self.faces]
 
+    @property
+    def value(self):
+        return to_value(self.face)
+
     def can_pipup_x(self, x: int):
         if self.face == DiceFace.NULL:
             return False

@@ -6,7 +6,7 @@ from dice import Die, PipUpException
 from display import COLOR, FOREGROUND, RESET
 from enums import *
 from tile import ActionFunction, Effect, SelectionException, RearrangementException, Tile
-
+from constraint import pair_constraint
 
 from typing import TYPE_CHECKING, TypeVar
 if TYPE_CHECKING:
@@ -229,6 +229,7 @@ class Player:
         self.tokens: list[ScarabType] = []
         self.effects: list[Effect] = []
         self.step = TurnStep.NONE
+        self.locked_pair = False
         self.add_scarabs(starting_tokens)
 
     @property
@@ -379,7 +380,10 @@ class Player:
                     self.locked_dice.extend(dice_to_lock)
                     self.prepared_dice.extend(dice_to_reroll)
                     self.available_dice = []
+
+                    self.locked_pair = pair_constraint.function([die.value for die in dice_to_lock if die.value is not DiceValue.NULL])
                     self.query_optional_activations(game)
+                    self.locked_pair = False
                     break
 
                 selected_action = None
