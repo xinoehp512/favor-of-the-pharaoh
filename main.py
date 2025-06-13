@@ -22,6 +22,10 @@ class Game:
         self.players = players
         self.tiles: dict[int, list[Tile]] = {}
 
+        self.final_roll_off = False
+        self.high_score = (7, 0)
+        self.high_scorer: Player | None = None
+
         self.next_player_turn = 0
 
         if tiles is None:
@@ -54,6 +58,10 @@ class Game:
         for level, tiles in self.tiles.items():
             for tile in tiles:
                 self.amounts[tile] = amount_by_level[level]
+
+    @property
+    def game_ended(self):
+        return all(player.finished for player in self.players)
 
     def get_opponents(self, player: Player):
         return [p for p in self.players if p != player]
@@ -90,12 +98,16 @@ class Game:
         return self.amounts[tile] > 0
 
     def claim_tile(self, player: Player, tile: Tile):
+        if self.final_roll_off:
+            print("Players cannot claim tiles during the final roll-off.")
+            return
         if tile in player.tiles:
             raise Exception("Players may only have one of each tile.")
         if self.amounts[tile] == 0:
             raise Exception(f"All {tile}s have been claimed.")
         self.amounts[tile] -= 1
-        player.tiles.append(tile)
+        player.tiles.append(tile.clone())
+        print(f"{tile} claimed by {player}!")
         if tile.type == TileType.BLUE:
             player.add_scarabs(1)
         if tile.type == TileType.RED:
@@ -106,22 +118,51 @@ class Game:
     def set_next_turn(self, player: Player):
         self.next_player_turn = self.players.index(player)
 
+    def begin_final_roll_off(self):
+        def add_red(player: Player, game: Game):
+            player.prepared_dice.append(get_die(DiceType.STANDARD))
+        self.final_roll_off = True
+        for i in range(self.next_player_turn, len(self.players)):
+            self.players[i].add_effect(Effect(add_red))
+        print("The Final Roll-Off has begun!")
+
+    def submit_score(self, player: Player):
+        if player.final_score == (0, 0):
+            return
+        print(f"{player} has submitted a score of {player.final_score[0]} {DiceValue(player.final_score[1]).name}s!")
+        if player.final_score > self.high_score:
+            self.high_scorer = player
+            self.high_score = player.final_score
+            print(f"{player} takes the Pharaoh!")
+        else:
+            print(f"{player} does not take the Pharaoh...")
+
     def play_game(self):
         print(BOLD+"Welcome to Favor of the Pharaoh!"+RESET)
         print("================================")
-        while True:
+        while not self.game_ended:
             next_player = self.players[self.next_player_turn]
             self.next_player_turn += 1
             self.next_player_turn %= len(self.players)
             next_player.take_turn(self)
+        print("================================")
+        print(BOLD+"Game Over!"+RESET)
+        print("================================")
+        for player in self.players:
+            print(f"{player} scored {player.final_score[0]} {DiceValue(player.final_score[1]).name}s.")
+        if self.high_scorer is not None:
+            print(f"{self.high_scorer} wins!")
+        else:
+            print("Nobody wins!")
 
 
 tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start, queen], Agent("Player 1", 4), starting_tokens=0)
-    player2 = Player([start], Agent("Player 2", 1), starting_tokens=1)
+    player = Player([tile.clone() for tile in [start, grand_vizier, master_artisan]], Agent("Player 1", 4), starting_tokens=0)
+    player2 = Player([start, indentured_worker, builder, royal_attendants, royal_decree, pharaohs_gift,
+                     surveyor, royal_mother], Agent("Player 2", 1), starting_tokens=1)
     random.seed(1)
     game = Game([player, player2])
     game.play_game()

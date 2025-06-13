@@ -170,7 +170,8 @@ def master_artisan_ability(player: Player, game: Game, tile: Tile):
 
 def plus_x_to_all(x: int):
     def func(player: Player, game: Game, tile: Tile):
-        chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None, message=f"Choose dice to add {x} to:")
+        chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None,
+                                               message=f"Choose dice to add {x} to:", constraint=lambda d: d.can_pipup_x(x))
         for die in chosen_dice:
             die.pipup(x)
     return func
@@ -181,6 +182,8 @@ def bad_omen_ability(player: Player, game: Game, tile: Tile):
         player.prepared_dice.append(get_die(DiceType.STANDARD))
 
     def remove_any_2(player: Player, game: Game):
+        if player.step == TurnStep.ROLL_OFF_START:
+            return
         dice_to_lose = player.agent.choose_dice(player, game, 2, message="Choose dice to lose for the turn", source=player.prepared_dice)
         for die in dice_to_lose:
             player.prepared_dice.remove(die)
@@ -249,6 +252,25 @@ def royal_power_ability(player: Player, game: Game, tile: Tile):
     except:
         print("No tiles remain!")
         return
+
+
+def queen_claim(player: Player, game: Game, tile: Tile):
+    player.score(game)
+    game.begin_final_roll_off()
+
+
+def pharaohs_gift_ability(player: Player, game: Game, tile: Tile):
+    player.final_score = (0, 0)
+    player.finished = False
+    game.set_next_turn(player)
+
+
+def royal_death_ability(player: Player, game: Game, tile: Tile):
+    def add_2_grey(player: Player, game: Game):
+        player.prepared_dice.extend([get_die(DiceType.IMMEDIATE) for _ in range(2)])
+    player.add_effect(Effect(add_2_grey))
+    game.set_next_turn(player)
+    game.begin_final_roll_off()
 
 
 class Tile:
@@ -361,7 +383,9 @@ bad_omen = Tile("BAD OMEN", 5, TileType.RED, ability=Ability(
     activation_window=[TurnStep.CLAIM_END]))
 burial_mask = Tile("BURIAL MASK", 5, TileType.RED, ability=Ability(
     activation_function=add_scarabs(5)))
-royal_decree = Tile("ROYAL DECREE", 5, TileType.RED)
+royal_decree = Tile("ROYAL DECREE", 5, TileType.RED, ability=Ability(
+    activation_function=add_roll_dice([DiceType.IMMEDIATE for _ in range(3)]),
+    activation_window=[TurnStep.ROLL_OFF_START]))
 
 embalmer = Tile("EMBALMER", 6, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.SIX)))
@@ -382,7 +406,9 @@ priestess = Tile("PRIESTESS", 6, TileType.BLUE, ability=Ability(
     activation_function=plus_x_to_all(2)))
 surveyor = Tile("SURVEYOR", 6, TileType.BLUE, ability=Ability(
     activation_function=surveyor_ability))
-pharaohs_gift = Tile("PHARAOH'S GIFT", 6, TileType.RED)
+pharaohs_gift = Tile("PHARAOH'S GIFT", 6, TileType.RED, ability=Ability(
+    activation_function=pharaohs_gift_ability,
+    activation_window=[TurnStep.ROLL_OFF_END]))
 secret_passage = Tile("SECRET PASSAGE", 6, TileType.RED, ability=Ability(
     activation_function=secret_passage_ability,
     activation_window=[TurnStep.ROLLS, TurnStep.CLAIM_END]))
@@ -405,13 +431,15 @@ royal_mother = Tile("ROYAL MOTHER", 7, TileType.BLUE, ability=Ability(
     activation_function=royal_mother_ability))
 queens_favor = Tile("QUEEN'S FAVOR", 7, TileType.RED, ability=Ability(
     on_claim_function=queens_favor_ability))
-royal_death = Tile("ROYAL DEATH", 7, TileType.RED)
+royal_death = Tile("ROYAL DEATH", 7, TileType.RED, ability=Ability(
+    on_claim_function=royal_death_ability))
 royal_power = Tile("ROYAL POWER", 7, TileType.RED, ability=Ability(
     activation_function=royal_power_ability,
     activation_window=[TurnStep.ROLLS, TurnStep.CLAIM_END]))
 
 queen = Tile("QUEEN", 7, TileType.YELLOW, ability=Ability(
-    activation_function=add_wild_die))
+    activation_function=add_wild_die,
+    on_claim_function=queen_claim))
 herder = Tile("HERDER", 1, TileType.YELLOW, ability=Ability(
     activation_function=add_roll_dice([DiceType.STANDARD]),
     activation_restriction=lambda p, g: p.locked_pair,

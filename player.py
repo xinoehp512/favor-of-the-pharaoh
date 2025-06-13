@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import itertools
 import random
-from dice import Die, PipUpException
+from dice import Die, PipUpException, get_die
 from display import COLOR, FOREGROUND, RESET
 from enums import *
 from tile import ActionFunction, Effect, SelectionException, RearrangementException, Tile
@@ -64,9 +64,11 @@ class Agent:
             amount_str = str(amount)
             if maximum > amount:
                 amount_str = f'{amount} to {maximum}'
-            raw_input = input(f"Enter {amount_str} distinct dice numbers (1-{len(available_dice)}), separated by commas: ")
+            raw_input = input(f"Enter {amount_str} distinct dice numbers, separated by commas: ")
             if amount == 0 and raw_input.lower() == "none":
                 return []
+            if maximum >= len(available_dice) and raw_input.lower() == "all":
+                return available_dice
             try:
                 selections = [int(x.strip()) for x in raw_input.split(',')]
             except ValueError:
@@ -221,16 +223,25 @@ T = TypeVar('T')
 
 class Player:
     def __init__(self, tiles: list[Tile], agent: Agent, starting_tokens: int = 0) -> None:
-        self.tiles = tiles
+        self._tiles = tiles
         self.agent = agent
         self.available_dice: list[Die] = []
         self.locked_dice: list[Die] = []
         self.prepared_dice: list[Die] = []
         self.tokens: list[ScarabType] = []
+        self.add_scarabs(starting_tokens)
+
         self.effects: list[Effect] = []
         self.step = TurnStep.NONE
         self.locked_pair = False
-        self.add_scarabs(starting_tokens)
+        self.borrowed_tile: Tile | None = None
+
+        self.final_score = (0, 0)
+        self.finished = False
+
+    @property
+    def tiles(self):
+        return self._tiles + ([self.borrowed_tile] if self.borrowed_tile is not None else [])
 
     @property
     def pip_up_amount(self):
@@ -289,6 +300,11 @@ class Player:
                 assert tile.ability.activation is not None
                 tile.activate(self, game)
 
+    def activate_all(self, game: Game):
+        for tile in self.get_active_tiles(game):
+            assert tile.ability.activation is not None
+            tile.activate(self, game)
+
     def claim_tile(self, game: Game, dice: list[Die], restriction: Callable[[Tile], bool] = lambda t: True):
         self.step = TurnStep.CLAIM
         dice_values = [to_value(die.face) for die in dice if to_value(die.face) != DiceValue.NULL]
@@ -301,11 +317,17 @@ class Player:
         if tile_options:
             tile_to_claim = self.agent.choose_item(tile_options)
             game.claim_tile(self, tile_to_claim)
-            print(f"{tile_to_claim} claimed by {self.agent}!")
             self.query_optional_activations(game)
         else:
             print(f"{self.agent} couldn't claim any tiles! They recieved 2 tokens as compensation.")
             self.add_scarabs(2)
+
+    def score(self, game: Game):
+        values = [die.value.value for die in self.locked_dice if die.value is not DiceValue.NULL]
+        scores = [(values.count(i), i) for i in set(values)]
+        scores.append(self.final_score)
+        self.final_score = sorted(scores, reverse=True)[0]
+        game.submit_score(self)
 
     def take_turn(self, game: Game):
         # Reset Dice Zones
@@ -314,7 +336,7 @@ class Player:
         self.prepared_dice = []
 
         # Turn Start
-        print(f"===={self.agent}'s turn!====")
+        print(f"===={self.agent}'s {"turn" if not game.final_roll_off else "final roll"}!====")
         self.step = TurnStep.TURN_START
         for tile in self.tiles:
             if tile.type in [TileType.YELLOW, TileType.BLUE]:
@@ -322,7 +344,12 @@ class Player:
             if tile.ability.turn_start is not None:
                 tile.ability.turn_start(self, game, tile)
                 tile.value = 0
+
         self.query_optional_activations(game)
+        if game.final_roll_off:
+            self.step = TurnStep.ROLL_OFF_START
+            self.query_optional_activations(game)
+
         for effect in self.effects:
             effect.turn_start(self, game)
         self.effects = []
@@ -381,6 +408,16 @@ class Player:
                     self.prepared_dice.extend(dice_to_reroll)
                     self.available_dice = []
 
+                    for die in dice_to_lock:
+                        if die.face is DiceFace.ADD_TWO:
+                            self.prepared_dice.extend([get_die(DiceType.STANDARD) for _ in range(2)])
+                        if die.face is DiceFace.STAR_DECREE:
+                            copiable_tiles = [tile for opponent in game.get_opponents(
+                                self) for tile in opponent.tiles if tile not in self.tiles]
+                            if copiable_tiles:
+                                print("Choose Tile to Copy:")
+                                self.borrowed_tile = self.agent.choose_item(copiable_tiles).clone()
+
                     self.locked_pair = pair_constraint.function([die.value for die in dice_to_lock if die.value is not DiceValue.NULL])
                     self.query_optional_activations(game)
                     self.locked_pair = False
@@ -415,12 +452,24 @@ class Player:
                     print("Can't pip-up that die!")
                 except RearrangementException:
                     print("Rearrangement Failed!")
-        # Claim Phase
+        self.borrowed_tile = None
 
+        # Claim Phase
         print(f"{self.agent} finished their roll with {self.locked_dice} locked.")
-        self.claim_tile(game, self.locked_dice)
-        self.step = TurnStep.CLAIM_END
-        self.query_optional_activations(game)
+        if not game.final_roll_off:
+            self.claim_tile(game, self.locked_dice)
+            self.step = TurnStep.CLAIM_END
+            self.query_optional_activations(game)
+        else:
+            self.step = TurnStep.ROLL_OFF_END
+            self.finished = True
+            self.query_optional_activations(game)
+            if self.finished:
+                self.score(game)
 
         print(f"====End of {self.agent}'s turn!====")
         self.step = TurnStep.NONE
+
+    def __str__(self) -> str:
+        return str(self.agent)
+    __repr__ = __str__
