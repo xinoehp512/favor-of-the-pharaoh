@@ -1,7 +1,7 @@
 
 import random
 
-from display import BOLD, RESET
+from display import BOLD, RESET, Text_Canvas
 from tile import *
 from enums import *
 from constraint import Constraint, a_rows, b_rows, any_roll_constraint
@@ -83,6 +83,64 @@ class Game:
     def get_available_tiles(self, player: Player, condition: Callable[[Tile], bool]) -> list[Tile]:
         return [tile for tile in self.get_all_tiles() if tile not in player.tiles and self.tile_available(tile) and condition(tile)]
 
+    def print_game(self):
+        # self.print_tiles()
+        # return
+
+        canvas_width = 180
+        canvas_height = 60
+        canvas = Text_Canvas(canvas_width, canvas_height)
+        '''
+        White 255\n
+        Red 196\n
+        Blue 21\n
+        Green 76\n
+        Black 234\n
+        Gold 220\n
+        Gray 110\n
+        '''
+        color_dict = {TileType.YELLOW: 220, TileType.BLUE: 21, TileType.RED: 196}
+        # Layout settings
+        tile_width = 32
+        tile_height = 6
+        x_margin = 2
+        y_margin = 3
+
+        left_buffer = 2
+
+        for level, tile_list in self.tiles.items():
+            if level > 1:
+                x = x_margin + 4 * (tile_width + x_margin)+left_buffer
+                y = y_margin + (7-level) * (tile_height + y_margin)
+                canvas.draw_text(x + 1, y-2, f"{self.get_row_mode(level).name} side", fcolor=7, bcolor=0)
+            for index, tile in enumerate(tile_list):
+                row = max(2, level)
+                x = x_margin + index * (tile_width + x_margin)+left_buffer
+                y = y_margin + (7-row) * (tile_height + y_margin)
+
+                # Draw background rectangle for the tile
+                canvas.draw_rect(x, y, tile_width, tile_height, color=234)
+                canvas.draw_rect(x+1, y+1, tile_width-2, tile_height-2, color=color_dict[tile.type])
+
+                # Get tile description (you might want to use tile.name or str(tile))
+                tile_text = tile.name
+
+                # Get condition
+                condition = self.get_condition(level, index)
+
+                # Write tile text and condition
+                canvas.draw_text(x, y - 2, condition.name.center(tile_width), fcolor=7, bcolor=color_dict[tile.type])
+                if not self.amounts[tile]:
+                    continue
+                canvas.draw_text(x, y, f"x{self.amounts[tile]} ".rjust(tile_width), fcolor=7, bcolor=0)
+                canvas.draw_text(x + 1, y, tile_text, fcolor=7, bcolor=0)
+
+                def split_string_by_length(text: str, length: int):
+                    return [text[i:i+length] for i in range(0, len(text), length)]
+                for i, row in enumerate(split_string_by_length(tile.description, tile_width-2)):
+                    canvas.draw_text(x + 1, y+1+i, row, fcolor=7, bcolor=color_dict[tile.type])
+            canvas.display()
+
     def print_tiles(self):
         for level in range(7, 2, -1):
             print(f"Level {level} Tiles ({self.get_row_mode(level).name} side): {self.tiles[level]}")
@@ -106,7 +164,7 @@ class Game:
         if self.amounts[tile] == 0:
             raise Exception(f"All {tile}s have been claimed.")
         self.amounts[tile] -= 1
-        player.tiles.append(tile.clone())
+        player.add_tile(tile.clone())
         print(f"{tile} claimed by {player}!")
         if tile.type == TileType.BLUE:
             player.add_scarabs(1)
@@ -160,13 +218,15 @@ tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([tile.clone() for tile in [start, grand_vizier, master_artisan]], Agent("Player 1", 4), starting_tokens=0)
-    player2 = Player([start, indentured_worker, builder, royal_attendants, royal_decree, pharaohs_gift,
-                     surveyor, royal_mother], Agent("Player 2", 1), starting_tokens=1)
+    player = Player([start.clone()], Agent("Player 1", 4), starting_tokens=0)
+    player2 = Player([start.clone()], Agent("Player 2", 1), starting_tokens=1)
     random.seed(1)
     game = Game([player, player2])
     game.play_game()
-    # print(game.get_tiles_conditions())
+    # game.print_game()
+    # with open("descriptions.txt", "w") as file:
+    #     for tile in tiles:
+    #         file.write(tile.description+"\n")
 
 
 if __name__ == "__main__":

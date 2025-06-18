@@ -111,13 +111,13 @@ def omen_ability(player: Player, game: Game, tile: Tile):
             if die.dice_type == DiceType.STANDARD:
                 player.prepared_dice.remove(die)
                 break
-    if player.step == TurnStep.CLAIM_END:
+    if player.step == TurnStep.CLAIM:
         game.set_next_turn(player)
         player.add_effect(Effect(remove_red))
 
 
 def good_omen_ability(player: Player, game: Game, tile: Tile):
-    if player.step == TurnStep.CLAIM_END:
+    if player.step == TurnStep.CLAIM:
         game.set_next_turn(player)
 
 
@@ -280,8 +280,9 @@ class Tile:
         TileType.RED: 196
     }
 
-    def __init__(self, name: str, level: int, type: TileType, ability: Ability = Ability()) -> None:
+    def __init__(self, name: str, description: str, level: int, type: TileType, ability: Ability = Ability()) -> None:
         self.name = name
+        self.description = description
         self.level = level
         self.type = type
         self.ability = ability
@@ -299,7 +300,7 @@ class Tile:
             self.value += 1
 
     def clone(self):
-        return Tile(self.name, self.level, self.type, self.ability)
+        return Tile(self.name, self.description, self.level, self.type, self.ability)
 
     def __eq__(self, value: object) -> bool:
         return isinstance(value, Tile) and value.name == self.name
@@ -312,139 +313,139 @@ class Tile:
     __repr__ = __str__
 
 
-farmer = Tile("FARMER", 3, TileType.YELLOW, ability=Ability(
+farmer = Tile("FARMER", 'Roll +1 Standard die to start your turn.', 3, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD])))
-guard = Tile("GUARD", 3, TileType.YELLOW, ability=Ability(
+guard = Tile("GUARD", 'After any roll, may bring 1 Standard die into play as a "2".', 3, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.TWO)))
-indentured_worker = Tile("INDENTURED WORKER", 3, TileType.YELLOW, ability=Ability(
+indentured_worker = Tile("INDENTURED WORKER", 'When claimed, gain 1 token. Roll +1 Immediate die to start your turn.', 3, TileType.YELLOW, ability=Ability(
     on_claim_function=add_scarabs(1),
     turn_start_function=add_roll_dice([DiceType.IMMEDIATE])))
-serf = Tile("SERF", 3, TileType.YELLOW, ability=Ability(
+serf = Tile("SERF", 'Roll +1 Serf die to start your turn.', 3, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.SERF])))
-worker = Tile("WORKER", 3, TileType.YELLOW, ability=Ability(
+worker = Tile("WORKER", 'After a roll, may bring 1 Standard die into play as a "1".', 3, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.ONE)))
-beggar = Tile("BEGGAR", 3, TileType.BLUE, ability=Ability(
+beggar = Tile("BEGGAR", 'Each turn, gain 1 token before your first roll.', 3, TileType.BLUE, ability=Ability(
     turn_start_function=add_scarabs(1)))
-servant = Tile("SERVANT", 3, TileType.BLUE, ability=Ability(
+servant = Tile("SERVANT", 'Add 1, 2, or 3 pips to an active die.', 3, TileType.BLUE, ability=Ability(
     activation_function=servant_ability))
-soothsayer = Tile("SOOTHSAYER", 3, TileType.BLUE, ability=Ability(
+soothsayer = Tile("SOOTHSAYER", 'Move any number of pips between two active dice.', 3, TileType.BLUE, ability=Ability(
     activation_function=rearrange_dice(2)))
-ankh = Tile("ANKH", 3, TileType.RED, ability=Ability(
+ankh = Tile("ANKH", 'Gain tokens equal to the number of tokens you have.', 3, TileType.RED, ability=Ability(
     activation_function=ankh_ability))
-omen = Tile("OMEN", 3, TileType.RED, ability=Ability(
+omen = Tile("OMEN", 'After claiming this tile, immediately take another turn, rolling 1 Standard die fewer than normal to start it.', 3, TileType.RED, ability=Ability(
     on_claim_function=omen_ability))
-ancestral_guidance = Tile("ANCESTRAL GUIDANCE", 3, TileType.RED, ability=Ability(
+ancestral_guidance = Tile("ANCESTRAL GUIDANCE", 'Gain 2 tokens immediately when used and +1 Standard die to roll.', 3, TileType.RED, ability=Ability(
     activation_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(2))))
 
-artisan = Tile("ARTISAN", 4, TileType.YELLOW, ability=Ability(
+artisan = Tile("ARTISAN", 'Roll +1 Artisan die to start your turn.', 4, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.ARTISAN])))
-builder = Tile("BUILDER", 4, TileType.YELLOW, ability=Ability(
+builder = Tile("BUILDER", 'Each turn, gain 1 token before your first roll. Roll +1 Immediate die to start your turn.', 4, TileType.YELLOW, ability=Ability(
     turn_start_function=both(add_roll_dice([DiceType.IMMEDIATE]), add_scarabs(1))))
-noble_adoption = Tile("NOBLE ADOPTION", 4, TileType.YELLOW, ability=Ability(
+noble_adoption = Tile("NOBLE ADOPTION", 'Roll +1 Noble die to start your turn.', 4, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.NOBLE])))
-palace_servants = Tile("PALACE SERVANTS", 4, TileType.YELLOW, ability=Ability(
+palace_servants = Tile("PALACE SERVANTS", 'Roll +2 Immediate dice to start your turn.', 4, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.IMMEDIATE for _ in range(2)])))
-soldier = Tile("SOLDIER", 4, TileType.YELLOW, ability=Ability(
+soldier = Tile("SOLDIER", 'After any roll, may bring 1 Standard die into play as a "3".', 4, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.THREE)))
-grain_merchant = Tile("GRAIN MERCHANT", 4, TileType.BLUE, ability=Ability(
+grain_merchant = Tile("GRAIN MERCHANT", 'Reroll 1+ active dice to gain 1 token.', 4, TileType.BLUE, ability=Ability(
     activation_function=grain_merchant_ability))
-entertainer = Tile("ENTERTAINER", 4, TileType.BLUE, ability=Ability(
+entertainer = Tile("ENTERTAINER", 'Flip any number of dice, including Custom dice, upside down.', 4, TileType.BLUE, ability=Ability(
     activation_function=entertainer_ability))
-matchmaker = Tile("MATCHMAKER", 4, TileType.BLUE, ability=Ability(
+matchmaker = Tile("MATCHMAKER", 'Adjust 1 active die to match any locked die.', 4, TileType.BLUE, ability=Ability(
     activation_function=matchmaker_ability))
-good_omen = Tile("GOOD OMEN", 4, TileType.RED, ability=Ability(
+good_omen = Tile("GOOD OMEN", 'After claiming this tile, immediately take another turn.', 4, TileType.RED, ability=Ability(
     on_claim_function=good_omen_ability))
-palace_key = Tile("PALACE KEY", 4, TileType.RED, ability=Ability(
+palace_key = Tile("PALACE KEY", 'Roll +2 Standard dice to start your turn.', 4, TileType.RED, ability=Ability(
     activation_function=add_roll_dice([DiceType.STANDARD for _ in range(2)]),
     activation_window=[TurnStep.TURN_START]))
-spirit_of_the_dead = Tile("SPIRIT OF THE DEAD", 4, TileType.RED, ability=Ability(
+spirit_of_the_dead = Tile("SPIRIT OF THE DEAD", 'After locking all rolled dice, gain +1 Standard die, adjust it to any face, and lock it.', 4, TileType.RED, ability=Ability(
     activation_function=add_locked_wild_die,
     activation_restriction=lambda p, g: p.locked_all,
     activation_window=[TurnStep.LOCK]))
 
-charioteer = Tile("CHARIOTEER", 5, TileType.YELLOW, ability=Ability(
+charioteer = Tile("CHARIOTEER", 'After any roll, may bring 1 Standard die into play as a "5".', 5, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.FIVE)))
-conspirator = Tile("CONSPIRATOR", 5, TileType.YELLOW, ability=Ability(
+conspirator = Tile("CONSPIRATOR", 'Roll +1 Intrigue die to start your turn.', 5, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.INTRIGUE])))
-overseer = Tile("OVERSEER", 5, TileType.YELLOW, ability=Ability(
+overseer = Tile("OVERSEER", 'After any roll, may bring 1 Standard die into play as a "4".', 5, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.FOUR)))
-ship_captain = Tile("SHIP CAPTAIN", 5, TileType.YELLOW, ability=Ability(
+ship_captain = Tile("SHIP CAPTAIN", 'Roll +1 Voyage die to start your turn.', 5, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.VOYAGE])))
-tomb_builder = Tile("TOMB BUILDER", 5, TileType.YELLOW, ability=Ability(
+tomb_builder = Tile("TOMB BUILDER", 'Each turn, gain 1 token before your first roll. Roll +1 Standard die to start your turn.', 5, TileType.YELLOW, ability=Ability(
     turn_start_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(1))))
-head_servant = Tile("HEAD SERVANT", 5, TileType.BLUE, ability=Ability(
+head_servant = Tile("HEAD SERVANT", 'Adjust any number of active Immediate dice to any face(s).', 5, TileType.BLUE, ability=Ability(
     activation_function=free_adjust_types(lambda d: d.dice_type == DiceType.IMMEDIATE)))
-master_artisan = Tile("MASTER ARTISAN", 5, TileType.BLUE, ability=Ability(
+master_artisan = Tile("MASTER ARTISAN", 'Adjust 1 active die to any other face.', 5, TileType.BLUE, ability=Ability(
     activation_function=master_artisan_ability))
-priest = Tile("PRIEST", 5, TileType.BLUE, ability=Ability(
+priest = Tile("PRIEST", 'Add 1 pip to any number of active dice.', 5, TileType.BLUE, ability=Ability(
     activation_function=plus_x_to_all(1)))
-bad_omen = Tile("BAD OMEN", 5, TileType.RED, ability=Ability(
+bad_omen = Tile("BAD OMEN", 'Play after your turn. Each other player rolls -2 dice next non-rolloff turn. Roll +1 Standard die next turn.', 5, TileType.RED, ability=Ability(
     activation_function=bad_omen_ability,
     activation_window=[TurnStep.CLAIM_END]))
-burial_mask = Tile("BURIAL MASK", 5, TileType.RED, ability=Ability(
+burial_mask = Tile("BURIAL MASK", 'Gain 5 tokens.', 5, TileType.RED, ability=Ability(
     activation_function=add_scarabs(5)))
-royal_decree = Tile("ROYAL DECREE", 5, TileType.RED, ability=Ability(
+royal_decree = Tile("ROYAL DECREE", 'Roll +3 Immediate dice to start your final roll-off turn.', 5, TileType.RED, ability=Ability(
     activation_function=add_roll_dice([DiceType.IMMEDIATE for _ in range(3)]),
     activation_window=[TurnStep.ROLL_OFF_START]))
 
-embalmer = Tile("EMBALMER", 6, TileType.YELLOW, ability=Ability(
+embalmer = Tile("EMBALMER", 'After any roll, may bring 1 Standard die into play as a "6".', 6, TileType.YELLOW, ability=Ability(
     activation_function=add_value_die(DiceFace.SIX)))
-estate_overseer = Tile("ESTATE OVERSEER", 6, TileType.YELLOW, ability=Ability(
+estate_overseer = Tile("ESTATE OVERSEER", 'Each turn, gain 1 token. After any roll, may bring 1 incrementing Standard die into play.', 6, TileType.YELLOW, ability=Ability(
     turn_start_function=add_scarabs(1),
     activation_function=add_incremental_die))
-grain_trader = Tile("GRAIN TRADER", 6, TileType.YELLOW, ability=Ability(
+grain_trader = Tile("GRAIN TRADER", 'Each turn, gain 2 tokens before your first roll. Roll +1 Standard die to start your turn.', 6, TileType.YELLOW, ability=Ability(
     turn_start_function=both(add_roll_dice([DiceType.STANDARD]), add_scarabs(2))))
-priest_of_the_dead = Tile("PRIEST OF THE DEAD", 6, TileType.YELLOW, ability=Ability(
+priest_of_the_dead = Tile("PRIEST OF THE DEAD", 'After locking all rolled dice, gain +1 Standard die, adjust it to any face, and lock it.', 6, TileType.YELLOW, ability=Ability(
     activation_function=add_locked_wild_die,
     activation_restriction=lambda p, g: p.locked_all,
     activation_window=[TurnStep.LOCK]))
-royal_attendants = Tile("ROYAL ATTENDANTS", 6, TileType.YELLOW, ability=Ability(
+royal_attendants = Tile("ROYAL ATTENDANTS", 'Roll +1 Standard die and +1 Immediate die to start your turn.', 6, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD, DiceType.IMMEDIATE])))
-astrologer = Tile("ASTROLOGER", 6, TileType.BLUE, ability=Ability(
+astrologer = Tile("ASTROLOGER", 'Move any number of pips among up to three active dice.', 6, TileType.BLUE, ability=Ability(
     activation_function=rearrange_dice(3)))
-priestess = Tile("PRIESTESS", 6, TileType.BLUE, ability=Ability(
+priestess = Tile("PRIESTESS", 'Add exactly 2 pips to any number of active dice.', 6, TileType.BLUE, ability=Ability(
     activation_function=plus_x_to_all(2)))
-surveyor = Tile("SURVEYOR", 6, TileType.BLUE, ability=Ability(
+surveyor = Tile("SURVEYOR", 'Replace 1 active die with 2 Immediate dice, whose pips must sum to the number of pips of the die being replaced.', 6, TileType.BLUE, ability=Ability(
     activation_function=surveyor_ability))
-pharaohs_gift = Tile("PHARAOH'S GIFT", 6, TileType.RED, ability=Ability(
+pharaohs_gift = Tile("PHARAOH'S GIFT", 'After your final roll-off turn, redo your final roll-off.', 6, TileType.RED, ability=Ability(
     activation_function=pharaohs_gift_ability,
     activation_window=[TurnStep.ROLL_OFF_END]))
-secret_passage = Tile("SECRET PASSAGE", 6, TileType.RED, ability=Ability(
+secret_passage = Tile("SECRET PASSAGE", "Claim up to two level 3 tiles that you don't already have.", 6, TileType.RED, ability=Ability(
     activation_function=secret_passage_ability,
     activation_window=[TurnStep.ROLLS, TurnStep.CLAIM_END]))
-treasure = Tile("TREASURE", 6, TileType.RED, ability=Ability(
+treasure = Tile("TREASURE", "Use after claiming a tile (including possibly this one). Divide your locked dice into two groups. With each group, claim one yellow or blue tile that you don't already have.", 6, TileType.RED, ability=Ability(
     activation_function=treasure_ability,
     activation_window=[TurnStep.CLAIM]))
 
-general = Tile("GENERAL", 7, TileType.YELLOW, ability=Ability(
+general = Tile("GENERAL", 'Roll +2 Standard dice to start your turn.', 7, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD for _ in range(2)])))
-grand_vizier = Tile("GRAND VIZIER", 7, TileType.YELLOW, ability=Ability(
+grand_vizier = Tile("GRAND VIZIER", 'Roll +1 Decree die to start your turn.', 7, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.DECREE])))
-granary_master = Tile("GRANARY MASTER", 7, TileType.YELLOW, ability=Ability(
+granary_master = Tile("GRANARY MASTER", 'Roll +1 Standard die to start your turn. After any roll, may bring 1 incrementing Standard die into play.', 7, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD]),
     activation_function=add_incremental_die))
-heir = Tile("HEIR", 7, TileType.BLUE, ability=Ability(activation_function=both(
+heir = Tile("HEIR", 'Add 1 pip to any number of active dice, then add 1 pip to any number of active dice.', 7, TileType.BLUE, ability=Ability(activation_function=both(
     plus_x_to_all(1), plus_x_to_all(1))))
-royal_astrologer = Tile("ROYAL ASTROLOGER", 7, TileType.BLUE, ability=Ability(
+royal_astrologer = Tile("ROYAL ASTROLOGER", 'Adjust any number of active non-Standard dice to any other face(s).', 7, TileType.BLUE, ability=Ability(
     activation_function=free_adjust_types(lambda d: d.dice_type != DiceType.STANDARD)))
-royal_mother = Tile("ROYAL MOTHER", 7, TileType.BLUE, ability=Ability(
+royal_mother = Tile("ROYAL MOTHER", 'Replace any number of active Immediate and/or Serf dice with an equal number of tokens and Standard dice to roll.', 7, TileType.BLUE, ability=Ability(
     activation_function=royal_mother_ability))
-queens_favor = Tile("QUEEN'S FAVOR", 7, TileType.RED, ability=Ability(
+queens_favor = Tile("QUEEN'S FAVOR", "Play immediately. Claim any yellow or blue tile of level 6 or lower that you don't already have and then immediately take another turn.", 7, TileType.RED, ability=Ability(
     on_claim_function=queens_favor_ability))
-royal_death = Tile("ROYAL DEATH", 7, TileType.RED, ability=Ability(
+royal_death = Tile("ROYAL DEATH", 'Play immediately. You begin the final roll-off, rolling +2 Immediate dice.', 7, TileType.RED, ability=Ability(
     on_claim_function=royal_death_ability))
-royal_power = Tile("ROYAL POWER", 7, TileType.RED, ability=Ability(
+royal_power = Tile("ROYAL POWER", "Claim up to two blue tiles of level 6 or lower that you don't already have.", 7, TileType.RED, ability=Ability(
     activation_function=royal_power_ability,
     activation_window=[TurnStep.ROLLS, TurnStep.CLAIM_END]))
 
-queen = Tile("QUEEN", 7, TileType.YELLOW, ability=Ability(
+queen = Tile("QUEEN", 'When claimed, take the Pharaoh token. After any roll, may bring 1 Standard die of any value into play.', 7, TileType.YELLOW, ability=Ability(
     activation_function=add_wild_die,
     on_claim_function=queen_claim))
-herder = Tile("HERDER", 1, TileType.YELLOW, ability=Ability(
+herder = Tile("HERDER", '', 1, TileType.YELLOW, ability=Ability(
     activation_function=add_roll_dice([DiceType.STANDARD]),
     activation_restriction=lambda p, g: p.locked_pair,
     activation_window=[TurnStep.LOCK]))
-start = Tile("START", 0, TileType.YELLOW, ability=Ability(
+start = Tile("START", 'Once per turn, after locking 2 or more matching dice on one roll, gain +1 Standard die to roll.', 0, TileType.YELLOW, ability=Ability(
     turn_start_function=add_roll_dice([DiceType.STANDARD for _ in range(3)])))
 
 tiles = [farmer, guard, indentured_worker, serf, worker, beggar, servant, soothsayer, ankh, omen, ancestral_guidance, artisan, builder, noble_adoption, palace_servants, soldier, grain_merchant, entertainer, matchmaker, good_omen, palace_key, spirit_of_the_dead, charioteer, conspirator, overseer, ship_captain, tomb_builder, head_servant,

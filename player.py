@@ -266,6 +266,9 @@ class Player:
     def add_effect(self, effect: Effect):
         self.effects.append(effect)
 
+    def add_tile(self, tile: Tile):
+        self._tiles.append(tile)
+
     def resolve_powers_rolled(self, game: Game):
         powers_triggered = [die for die in self.available_dice if die.power_triggered]
         while powers_triggered:
@@ -374,7 +377,8 @@ class Player:
                 for tile in self.get_active_tiles(game):
                     actions.append(Action(f"Activate {tile}", tile.activate))
 
-                game.print_tiles()
+                game.print_game()
+                print(f"===={self.agent}'s {"turn" if not game.final_roll_off else "final roll"}====")
                 print(f'Rolled Dice: {self.available_dice}')
                 print(f'Locked dice: {self.locked_dice}')
                 print(

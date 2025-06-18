@@ -39,11 +39,11 @@ def x_y_z_of_a_kind(xyz: list[int]) -> ConstraintFunc:
     def func(dice: list[DiceValue]) -> bool:
         face_freq = get_freq_dist(dice)
         set_values = sorted(face_freq.values(), reverse=True)
-        if len(set_values) < len(xyz):
-            return False
-        for dice_value, requirement_value in zip(set_values, xyz):
-            if dice_value < requirement_value:
+        for requirement_value in xyz:
+            if set_values[0] < requirement_value:
                 return False
+            set_values[0] -= requirement_value
+            set_values.sort(reverse=True)
         return True
     return func
 
@@ -145,19 +145,19 @@ class Constraint:
 
 
 pair_constraint = Constraint("Pair", pair)
-three_of_a_kind_constraint = Constraint("Three of a Kind", three_of_a_kind)
-four_of_a_kind_constraint = Constraint("Four of a Kind", four_of_a_kind)
-five_of_a_kind_constraint = Constraint("Five of a Kind", five_of_a_kind)
-six_of_a_kind_constraint = Constraint("Six of a Kind", six_of_a_kind)
-seven_of_a_kind_constraint = Constraint("Seven of a Kind", seven_of_a_kind)
-two_pairs_constraint = Constraint("Two Pairs", two_pairs)
-three_pairs_constraint = Constraint("Three Pairs", three_pairs)
-pair_and_three_of_a_kind_constraint = Constraint("Pair & Three of a Kind", pair_and_three_of_a_kind)
-pair_and_four_of_a_kind_constraint = Constraint("Pair & Four of a Kind", pair_and_four_of_a_kind)
-pair_and_five_of_a_kind_constraint = Constraint("Pair & Five of a Kind", pair_and_five_of_a_kind)
-two_three_of_a_kinds_constraint = Constraint("Two Three of a Kinds", two_three_of_a_kinds)
-three_of_a_kind_and_two_pairs_constraint = Constraint("Three of a Kind & Two Pairs", three_of_a_kind_and_two_pairs)
-three_of_a_kind_and_four_of_a_kind_constraint = Constraint("Three of a Kind & Four of a Kind", three_of_a_kind_and_four_of_a_kind)
+three_of_a_kind_constraint = Constraint("3 of a Kind", three_of_a_kind)
+four_of_a_kind_constraint = Constraint("4 of a Kind", four_of_a_kind)
+five_of_a_kind_constraint = Constraint("5 of a Kind", five_of_a_kind)
+six_of_a_kind_constraint = Constraint("6 of a Kind", six_of_a_kind)
+seven_of_a_kind_constraint = Constraint("7 of a Kind", seven_of_a_kind)
+two_pairs_constraint = Constraint("2 Pairs", two_pairs)
+three_pairs_constraint = Constraint("3 Pairs", three_pairs)
+pair_and_three_of_a_kind_constraint = Constraint("Pair & 3 of a Kind", pair_and_three_of_a_kind)
+pair_and_four_of_a_kind_constraint = Constraint("Pair & 4 of a Kind", pair_and_four_of_a_kind)
+pair_and_five_of_a_kind_constraint = Constraint("Pair & 5 of a Kind", pair_and_five_of_a_kind)
+two_three_of_a_kinds_constraint = Constraint("2 3 of a Kinds", two_three_of_a_kinds)
+three_of_a_kind_and_two_pairs_constraint = Constraint("3 of a Kind & 2 Pairs", three_of_a_kind_and_two_pairs)
+three_of_a_kind_and_four_of_a_kind_constraint = Constraint("3 of a Kind & 4 of a Kind", three_of_a_kind_and_four_of_a_kind)
 all_even_constraint = Constraint("All Even", all_even)
 all_odd_constraint = Constraint("All Odd", all_odd)
 all_greater_than_equal_to_four_constraint = Constraint("All Dice ≥ 4", all_greater_than_equal_to_four)
@@ -174,10 +174,10 @@ sum_45_constraint = Constraint("45+", sum_45)
 small_straight_constraint = Constraint("1234/2345/3456", small_straight)
 large_straight_constraint = Constraint("12345/23456", large_straight)
 grand_straight_constraint = Constraint("123456", grand_straight)
-pair_of_sixes_and_ones_constraint = Constraint("Pair of 6's & Pair of 1's", pair_of_sixes_and_ones)
-three_sixes_two_ones_constraint = Constraint("Three 6's & Pair of 1's", three_sixes_two_ones)
+pair_of_sixes_and_ones_constraint = Constraint("Pair of 6s & Pair of 1s", pair_of_sixes_and_ones)
+three_sixes_two_ones_constraint = Constraint("3 6s & Pair of 1s", three_sixes_two_ones)
 all_different_constraint = Constraint("All Different", all_different)
-four_of_a_kind_three_ones_constraint = Constraint("Four of a Kind & Three 1's", four_of_a_kind_three_ones)
+four_of_a_kind_three_ones_constraint = Constraint("4 of a Kind & 3 1s", four_of_a_kind_three_ones)
 
 row1a = [three_of_a_kind_constraint, pair_constraint, all_even_constraint, sum_10_constraint]
 row1b = [three_of_a_kind_constraint, all_greater_than_equal_to_four_constraint, all_odd_constraint, sum_15_constraint]
@@ -199,3 +199,6 @@ row5b = [seven_of_a_kind_constraint, four_of_a_kind_three_ones_constraint,
 a_rows = [row1a, row2a, row3a, row4a, row5a]
 b_rows = [row1b, row2b, row3b, row4b, row5b]
 any_roll_constraint = Constraint("Any Roll", any_roll)
+
+if __name__ == "__main__":
+    print(three_pairs_constraint.function([DiceValue.FOUR]*4+[DiceValue.TWO]*2))
