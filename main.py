@@ -2,6 +2,7 @@
 import random
 
 from display import BOLD, RESET, Text_Canvas
+from pygame_display import PygameDisplay
 from tile import *
 from enums import *
 from constraint import Constraint, a_rows, b_rows, any_roll_constraint
@@ -222,11 +223,14 @@ def main():
     player2 = Player([start.clone()], Agent("Player 2", 1), starting_tokens=1)
     random.seed(1)
     game = Game([player, player2])
-    game.play_game()
+    # game.play_game()
+
     # game.print_game()
     # with open("descriptions.txt", "w") as file:
     #     for tile in tiles:
     #         file.write(tile.description+"\n")
+    display = PygameDisplay(game)
+    display.run()
 
 
 if __name__ == "__main__":
