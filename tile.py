@@ -441,7 +441,7 @@ royal_power = Tile("ROYAL POWER", "Claim up to two blue tiles of level 6 or lowe
 queen = Tile("QUEEN", 'When claimed, take the Pharaoh token. After any roll, may bring 1 Standard die of any value into play.', 7, TileType.YELLOW, ability=Ability(
     activation_function=add_wild_die,
     on_claim_function=queen_claim))
-herder = Tile("HERDER", '', 1, TileType.YELLOW, ability=Ability(
+herder = Tile("HERDER", 'After locking a pair, may gain +1 Standard die to Roll.', 1, TileType.YELLOW, ability=Ability(
     activation_function=add_roll_dice([DiceType.STANDARD]),
     activation_restriction=lambda p, g: p.locked_pair,
     activation_window=[TurnStep.LOCK]))
