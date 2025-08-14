@@ -156,6 +156,9 @@ class Game:
     def tile_available(self, tile: Tile):
         return self.amounts[tile] > 0
 
+    def get_tiles_available(self, tile: Tile):
+        return self.amounts[tile]
+
     def claim_tile(self, player: Player, tile: Tile):
         if self.final_roll_off:
             print("Players cannot claim tiles during the final roll-off.")
