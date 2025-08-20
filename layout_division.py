@@ -57,13 +57,35 @@ class BorderStyle:
         self.color = color
 
 
+class Font:
+    fonts: dict[tuple[str, int, bool, bool], pygame.font.Font] = {}
+
+    @classmethod
+    def get_font(cls,  text_font: str, text_font_size: int, is_bold: bool = False, is_italic: bool = False):
+        font_info = (text_font, text_font_size, is_bold, is_italic)
+        if font_info in cls.fonts:
+            return cls.fonts[font_info]
+        else:
+            font = pygame.font.SysFont(text_font, text_font_size, is_bold, is_italic)
+            cls.fonts[font_info] = font
+            return font
+
+
 class TextStyle:
     """Represents styling for text rendering."""
 
-    def __init__(self, text_color: tuple[int, int, int], text_font: str, text_font_size: int):
+    def __init__(self, text_color: tuple[int, int, int], text_font: str, text_font_size: int, is_bold: bool = False, is_italic: bool = False):
         self.text_color = text_color
         self.text_font = text_font
         self.text_font_size = text_font_size
+        self.is_bold = is_bold
+        self.is_italic = is_italic
+
+    def get_font_info(self):
+        return (self.text_font, self.text_font_size, self.is_bold, self.is_italic)
+
+    def get_font(self):
+        return Font.get_font(*self.get_font_info())
 
 # ---------------- Base Layout Division ----------------
 
@@ -232,7 +254,7 @@ class TextDivision(LayoutDivision):
         super().__init__(**kwargs)  # type: ignore
         self.text_callback = text_callback
         self.text_style = text_style
-        self.font = pygame.font.SysFont(self.text_style.text_font, self.text_style.text_font_size)
+        self.font = self.text_style.get_font()
         if "flex" not in kwargs:
             self.flex = 0  # Default flex for text
 
@@ -255,6 +277,8 @@ class TextDivision(LayoutDivision):
     def draw(self, delegated_size: tuple[int, int]) -> pygame.Surface:
         """Draws the text, word-wrapping and resizing if flex == 1."""
         draw_w, draw_h = self.get_size() or delegated_size
+        content_width = draw_w - self.padding.horizontal - self.border.size * 2 - self.margin.horizontal
+        content_height = draw_h - self.padding.vertical - self.border.size * 2 - self.margin.vertical
 
         surface = pygame.Surface((draw_w, draw_h), pygame.SRCALPHA)
         text = self.text_callback()
@@ -264,14 +288,23 @@ class TextDivision(LayoutDivision):
         font = self.font
         lines = [text]
         if self.flex == 1:
-            font_size = self._find_max_font_size(text, draw_w, draw_h)
-            font = pygame.font.SysFont(self.text_style.text_font, font_size)
-            lines = self._word_wrap(text, font, draw_w)
+            font_size = self._find_max_font_size(text, content_width, content_height)
+            font = Font.get_font(self.text_style.text_font, font_size, self.text_style.is_bold, self.text_style.is_italic)
+            lines = self._word_wrap(text, font, content_width)
 
-        y_offset = self.padding.top + self.border.size + self.margin.top
+        total_height = 0
+        for line in lines:
+            size = font.size(line)
+            total_height += size[1]
+        extra_height = content_height-total_height
+
+        y_offset = self.padding.top + self.border.size + self.margin.top + extra_height*self.vert_alignment
         for line in lines:
             rendered = font.render(line, True, self.text_style.text_color)
-            surface.blit(rendered, (self.padding.left, y_offset))
+            extra_width = content_width - rendered.get_width()
+            x_offset = self.margin.left+self.border.size+self.padding.left + extra_width*self.horiz_alignment
+
+            surface.blit(rendered, (x_offset, y_offset))
             y_offset += rendered.get_height()
 
         return surface
@@ -299,7 +332,7 @@ class TextDivision(LayoutDivision):
         to fit in max_width and max_height.
         """
         for size in range(self.text_style.text_font_size, 5, -1):
-            font = pygame.font.SysFont(self.text_style.text_font, size)
+            font = Font.get_font(self.text_style.text_font, size, self.text_style.is_bold, self.text_style.is_italic)
             lines = self._word_wrap(text, font, max_width)
             total_height = sum(font.size(line)[1] for line in lines)
             if total_height <= max_height:
@@ -414,8 +447,11 @@ def create_layout_2():
     def get_count(x: int, y: int):
         return game.get_tiles_available(get_tile(x, y))
 
+    def get_side(y: int):
+        return game.get_row_mode(7-y)
+
     # Color definitions
-    COLOR_DICT: dict[TileType | str, tuple[int, int, int]] = {  # type: ignore
+    COLOR_DICT: dict[TileType | str, tuple[int, int, int]] = {
         TileType.YELLOW: (255, 215, 0),
         TileType.BLUE: (0, 102, 204),
         TileType.RED: (220, 20, 60),
@@ -427,14 +463,15 @@ def create_layout_2():
     }
 
     # Font definitions
-    FONT_DICT: dict[str, tuple[str, int]] = {  # type: ignore
-        "title": ("consolas", 18),
-        "side": ("consolas", 20),
-        "description": ("consolas", 15),
+    FONT_DICT: dict[str, TextStyle] = {
+        "title": TextStyle((255, 255, 255), "consolas", 18),
+        "title-dark": TextStyle((30, 30, 30), "consolas", 18),
+        "side": TextStyle((255, 255, 255), "consolas", 20),
+        "description": TextStyle((255, 255, 255), "consolas", 15),
+        "description-dark": TextStyle((30, 30, 30), "consolas", 15),
+        "condition": TextStyle((255, 255, 255), "consolas", 16, is_bold=True),
     }
 
-    condition_style = TextStyle((255, 255, 255), "consolas", 22)
-    description_style = TextStyle((255, 255, 255), "consolas", 20)
     layout = LayoutDivision(
         # padding=Spacing.axis(horiz=10),
         background_color=COLOR_DICT["background"],
@@ -453,39 +490,57 @@ def create_layout_2():
                         children=[
                             TextDivision(
                                 text_callback=lambda x=game.get_condition(7-y, x).name: x,
-                                text_style=condition_style,
-                                margin=Spacing.all(5)
+                                text_style=FONT_DICT["condition"],
+                                flex=1,
+                                flex_weight=1,
+                                vert_alignment=0.5,
+                                horiz_alignment=0.5
+
                             ),
                             LayoutDivision(
                                 background_color=COLOR_DICT[get_tile(x, y).type],
                                 padding=Spacing.all(5),
+                                flex_weight=5,
                                 children=[
                                     LayoutDivision(
                                         children=[
                                             TextDivision(
                                                 text_callback=lambda x=x, y=y: get_tile(x, y).name,
-                                                text_style=condition_style
+                                                text_style=FONT_DICT["title" if get_tile(
+                                                    x, y).type is not TileType.YELLOW else "title-dark"],
+                                                flex=1,
+                                                horiz_alignment=0
                                             ),
-                                            LayoutDivision(),
                                             TextDivision(
                                                 text_callback=lambda x=x, y=y: f"x{get_count(x, y)}",
-                                                text_style=condition_style
+                                                text_style=FONT_DICT["title" if get_tile(
+                                                    x, y).type is not TileType.YELLOW else "title-dark"],
+                                                flex=1,
+                                                horiz_alignment=1
                                             ),
                                         ],
-                                        flex=3,
                                         flow_direction=FlowDirection.RIGHT
                                     ),
                                     TextDivision(
                                         text_callback=lambda x=x, y=y: get_tile(x, y).description,
-                                        text_style=description_style,
+                                        text_style=FONT_DICT["description" if get_tile(
+                                            x, y).type is not TileType.YELLOW else "description-dark"],
                                         margin=Spacing.all(5),
-                                        flex=1
+                                        flex=1,
+                                        flex_weight=4
                                     )
                                 ]
                             )
                         ]
                     )
                     for x in range(4)
+                ] + [
+                    TextDivision(
+                        text_callback=lambda y=y: f'{get_side(y).name} side',
+                        text_style=FONT_DICT["side"],
+                        margin=Spacing.all(10),
+                        padding=Spacing.all(5)
+                    )
                 ],
                 flow_direction=FlowDirection.RIGHT
             )
@@ -512,7 +567,8 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-        layout_surface = layout.draw(screen.get_size())
+        screen_w, screen_h = screen.get_size()
+        layout_surface = layout.draw((screen_w, (screen_h*2)//3))
         screen.blit(layout_surface, (0, 0))
         pygame.display.flip()
         clock.tick(30)
