@@ -5,7 +5,8 @@ from enum import Enum
 import pygame
 
 from enums import TileType
-from player import Agent, Player
+from game_io import ConsoleIO
+from player import Player
 from tile import *
 from main import Game
 
@@ -436,8 +437,8 @@ def create_layout():
 
 
 def create_layout_2():
-    player = Player([start.clone()], Agent("Player 1", 4), starting_tokens=0)
-    player2 = Player([start.clone()], Agent("Player 2", 1), starting_tokens=1)
+    player = Player([start.clone()], ("Player 1", 4), ConsoleIO(), starting_tokens=0)
+    player2 = Player([start.clone()], ("Player 2", 1), ConsoleIO(), starting_tokens=1)
     random.seed(6)
     game = Game([player, player2])
 

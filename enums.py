@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 
 
 class RowMode(Enum):
@@ -93,3 +93,10 @@ class TurnStep(Enum):
     ROLL_OFF_END = 6
 
     NONE = -1
+
+
+class Alert(Enum):
+    ROLL_OFF = auto()
+    SCORE_SUBMITTED = auto()
+    GAME_BEGIN = auto()
+    GAME_END = auto()

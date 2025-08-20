@@ -62,8 +62,7 @@ def add_value_die(face: DiceFace):
 
 
 def add_wild_die(player: Player, game: Game, tile: Tile):
-    print("Choose the dice value")
-    face = player.agent.choose_item(sorted(get_die(DiceType.STANDARD).faces, key=lambda v: v.value))
+    face = player.io.choose_item("Choose the dice value", sorted(get_die(DiceType.STANDARD).faces, key=lambda v: v.value))
     player.available_dice.append(get_die(DiceType.STANDARD).set_face(face))
 
 
@@ -79,20 +78,19 @@ def both(*args: AbilityFunction):
 
 
 def servant_ability(player: Player, game: Game, tile: Tile):
-    chosen_die = player.agent.choose_dice(player, game, 1, message="Choose die to pipup:")[0]
-    amount = player.agent.choose_item([1, 2, 3])
+    chosen_die = player.io.choose_die(player.available_dice, message="Choose die to pipup:")
+    amount = player.io.choose_item("Choose amount to pip-up:", [1, 2, 3])
     chosen_die.pipup(amount)
 
 
 def rearrange_dice(amount: int):
     def func(player: Player, game: Game, tile: Tile):
-        chosen_dice = player.agent.choose_dice(player, game, amount, message="Choose dice to rearrange pips:")
+        chosen_dice = player.io.choose_dice(player.available_dice, amount, message="Choose dice to rearrange pips:")
         if any(to_value(die.face) is DiceValue.NULL for die in chosen_dice):
-            print("Can't move pips on non-numeric faces!")
-            raise RearrangementException()
+            raise RearrangementException("Can't move pips on non-numeric faces!")
         try:
             total_sum = sum(to_value(die.face).value for die in chosen_dice)
-            rearrangement = player.agent.choose_rearrangement(player, game, chosen_dice, total_sum)
+            rearrangement = player.io.choose_rearrangement(chosen_dice, total_sum)
             for die, face in rearrangement:
                 die.set_face(face)
         except ValueError as e:
@@ -122,7 +120,7 @@ def good_omen_ability(player: Player, game: Game, tile: Tile):
 
 
 def grain_merchant_ability(player: Player, game: Game, tile: Tile):
-    chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None, message="Choose dice to reroll:")
+    chosen_dice = player.io.choose_dice(player.available_dice, 0, maximum=None, message="Choose dice to reroll:")
     if not chosen_dice:
         raise SelectionException()
     for die in chosen_dice:
@@ -131,7 +129,7 @@ def grain_merchant_ability(player: Player, game: Game, tile: Tile):
 
 
 def entertainer_ability(player: Player, game: Game, tile: Tile):
-    chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None, message="Choose dice to reroll:")
+    chosen_dice = player.io.choose_dice(player.available_dice, 0, maximum=None, message="Choose dice to reroll:")
     for die in chosen_dice:
         die.flip()
 
@@ -141,37 +139,37 @@ def matchmaker_ability(player: Player, game: Game, tile: Tile):
     possible_matches = [die for die in player.available_dice if any(to_value(face) in locked_values for face in die.faces)]
     if len(possible_matches) == 0:
         raise SelectionException("No possible matches!")
-    die_to_adjust = player.agent.choose_dice(player, game, 1, message="Choose a die to match a locked die:")[0]
-    print("Choose a face from among locked dice:")
+    die_to_adjust = player.io.choose_die(player.available_dice, message="Choose a die to match a locked die:")
     options = [face for face in die_to_adjust.faces if to_value(face) in locked_values]
-    face_to_match = player.agent.choose_item(options)
+    face_to_match = player.io.choose_item("Choose a face from among locked dice:", options)
     die_to_adjust.set_face(face_to_match)
 
 
 def add_locked_wild_die(player: Player, game: Game, tile: Tile):
-    print("Choose the dice value")
-    face = player.agent.choose_item(sorted(get_die(DiceType.STANDARD).faces, key=lambda v: v.value))
+    face = player.io.choose_item("Choose the dice value", sorted(get_die(DiceType.STANDARD).faces, key=lambda v: v.value))
     player.locked_dice.append(get_die(DiceType.STANDARD).set_face(face))
 
 
 def free_adjust_types(condition: Callable[[Die], bool]):
     def func(player: Player, game: Game, tile: Tile):
-        dice_to_adjust = player.agent.choose_dice(player, game, 0, maximum=None,
-                                                  message="Choose dice to adjust", constraint=condition)
+        dice_to_adjust = player.io.choose_dice(player.available_dice, 0, maximum=None,
+                                               message="Choose dice to adjust", constraint=condition)
         for die in dice_to_adjust:
-            player.agent.adjust_die_to_other(die)
+            new_face = player.io.choose_adjust_face(die)
+            die.set_face(new_face)
     return func
 
 
 def master_artisan_ability(player: Player, game: Game, tile: Tile):
-    die_to_adjust = player.agent.choose_dice(player, game, 1, message="Choose die to adjust")[0]
-    player.agent.adjust_die_to_other(die_to_adjust)
+    die_to_adjust = player.io.choose_die(player.available_dice, message="Choose die to adjust")
+    new_face = player.io.choose_adjust_face(die_to_adjust)
+    die_to_adjust.set_face(new_face)
 
 
 def plus_x_to_all(x: int):
     def func(player: Player, game: Game, tile: Tile):
-        chosen_dice = player.agent.choose_dice(player, game, 0, maximum=None,
-                                               message=f"Choose dice to add {x} to:", constraint=lambda d: d.can_pipup_x(x))
+        chosen_dice = player.io.choose_dice(player.available_dice, 0, maximum=None,
+                                            message=f"Choose dice to add {x} to:", constraint=lambda d: d.can_pipup_x(x))
         for die in chosen_dice:
             die.pipup(x)
     return func
@@ -184,7 +182,7 @@ def bad_omen_ability(player: Player, game: Game, tile: Tile):
     def remove_any_2(player: Player, game: Game):
         if player.step == TurnStep.ROLL_OFF_START:
             return
-        dice_to_lose = player.agent.choose_dice(player, game, 2, message="Choose dice to lose for the turn", source=player.prepared_dice)
+        dice_to_lose = player.io.choose_dice(player.prepared_dice, 2, message="Choose dice to lose for the turn")
         for die in dice_to_lose:
             player.prepared_dice.remove(die)
     player.add_effect(Effect(add_red))
@@ -193,11 +191,10 @@ def bad_omen_ability(player: Player, game: Game, tile: Tile):
 
 
 def surveyor_ability(player: Player, game: Game, tile: Tile):
-    split_die = player.agent.choose_dice(player, game, 1, message="Choose dice to split:",
-                                         constraint=lambda d: is_numeric(d.face) and to_value(d.face).value > 1)[0]
+    split_die = player.io.choose_die(player.available_dice, message="Choose dice to split:",
+                                     constraint=lambda d: is_numeric(d.face) and to_value(d.face).value > 1)
     player.available_dice.remove(split_die)
-    new_dice = player.agent.choose_rearrangement(player, game, [get_die(DiceType.IMMEDIATE)
-                                                 for _ in range(2)], to_value(split_die.face).value)
+    new_dice = player.io.choose_rearrangement([get_die(DiceType.IMMEDIATE) for _ in range(2)], to_value(split_die.face).value)
     for die, face in new_dice:
         player.available_dice.append(die.set_face(face))
 
@@ -205,19 +202,19 @@ def surveyor_ability(player: Player, game: Game, tile: Tile):
 def secret_passage_ability(player: Player, game: Game, tile: Tile):
     lv_3_tiles = game.get_available_tiles(player, lambda tile: tile.level == 3)
     try:
-        choices = player.agent.choose_items("Choose 2 Level 3 Tiles:", lv_3_tiles, 0, 2)
+        choices = player.io.choose_items("Choose 2 Level 3 Tiles:", lv_3_tiles, 0, 2)
     except ValueError:
         choices = lv_3_tiles
     if not choices:
-        print("No Tiles Claimed!")
+        player.io.show_message("No Tiles Claimed!")
         return
     for choice in choices:
         game.claim_tile(player, choice)
 
 
 def treasure_ability(player: Player, game: Game, tile: Tile):
-    group_1 = player.agent.choose_dice(
-        player, game, 1, None, message="Select dice for group 1 (the rest will be in group 2):", source=player.locked_dice)
+    group_1 = player.io.choose_dice(
+        player.locked_dice, 1, None, message="Select dice for group 1 (the rest will be in group 2):")
     group_2 = [die for die in player.locked_dice if die not in group_1]
     tile.disabled = True
     player.claim_tile(game, group_1, restriction=lambda tile: tile.type is not TileType.RED)
@@ -225,8 +222,8 @@ def treasure_ability(player: Player, game: Game, tile: Tile):
 
 
 def royal_mother_ability(player: Player, game: Game, tile: Tile):
-    swap_dice = player.agent.choose_dice(player, game, 0, None, message="Choose any number of Immediate and Serf dice to replace:",
-                                         constraint=lambda d: d.dice_type in (DiceType.IMMEDIATE, DiceType.SERF))
+    swap_dice = player.io.choose_dice(player.available_dice, 0, None, message="Choose any number of Immediate and Serf dice to replace:",
+                                      constraint=lambda d: d.dice_type in (DiceType.IMMEDIATE, DiceType.SERF))
     player.add_scarabs(len(swap_dice))
     for die in swap_dice:
         player.available_dice.remove(die)
@@ -235,22 +232,22 @@ def royal_mother_ability(player: Player, game: Game, tile: Tile):
 
 def queens_favor_ability(player: Player, game: Game, tile: Tile):
     try:
-        choice = player.agent.choose_items("Choose any blue or yellow tile Level 6 or lower.", game.get_available_tiles(
+        choice = player.io.choose_items("Choose any blue or yellow tile Level 6 or lower.", game.get_available_tiles(
             player, lambda tile: tile.level <= 6 and tile.type is not TileType.RED), 1)[0]
         game.claim_tile(player, choice)
     except:
-        print("No tiles remain!")
+        player.io.show_message("No tiles remain!")
     game.set_next_turn(player)
 
 
 def royal_power_ability(player: Player, game: Game, tile: Tile):
     try:
-        choices = player.agent.choose_items("Choose up to 2 blue tiles Level 6 or lower.", game.get_available_tiles(
+        choices = player.io.choose_items("Choose up to 2 blue tiles Level 6 or lower.", game.get_available_tiles(
             player, lambda tile: tile.level <= 6 and tile.type is TileType.BLUE), 0, 2)
         for choice in choices:
             game.claim_tile(player, choice)
     except:
-        print("No tiles remain!")
+        player.io.show_message("No tiles remain!")
         return
 
 

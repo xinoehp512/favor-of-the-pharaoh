@@ -1,12 +1,13 @@
 
 import random
+from typing import Any
 
-from display import BOLD, RESET, Text_Canvas
-from pygame_display import PygameDisplay
+from display import Text_Canvas
+from game_io import ConsoleIO, IOPort
 from tile import *
 from enums import *
 from constraint import Constraint, a_rows, b_rows, any_roll_constraint
-from player import Agent, Player
+from player import Player
 
 
 class TileSet:
@@ -102,8 +103,8 @@ class Game:
         '''
         color_dict = {TileType.YELLOW: 220, TileType.BLUE: 21, TileType.RED: 196}
         # Layout settings
-        tile_width = 32
-        tile_height = 6
+        tile_width = 37
+        tile_height = 7
         x_margin = 2
         y_margin = 3
 
@@ -142,9 +143,12 @@ class Game:
                     canvas.draw_text(x + 1, y+1+i, row, fcolor=7, bcolor=color_dict[tile.type])
             canvas.display()
 
-    def print_tiles(self):
-        for level in range(7, 2, -1):
-            print(f"Level {level} Tiles ({self.get_row_mode(level).name} side): {self.tiles[level]}")
+    def alert_players(self, alert: Alert, data: dict[str, Any] = {}):
+        alerted: list[IOPort] = []
+        for player in self.players:
+            if player.io not in alerted:
+                player.io.alert(alert, data)
+                alerted.append(player.io)
 
     def get_tiles_conditions(self):
         tiles_and_conditions: list[tuple[Tile, Constraint]] = []
@@ -161,7 +165,7 @@ class Game:
 
     def claim_tile(self, player: Player, tile: Tile):
         if self.final_roll_off:
-            print("Players cannot claim tiles during the final roll-off.")
+            player.io.show_message("Players cannot claim tiles during the final roll-off.")
             return
         if tile in player.tiles:
             raise Exception("Players may only have one of each tile.")
@@ -169,7 +173,7 @@ class Game:
             raise Exception(f"All {tile}s have been claimed.")
         self.amounts[tile] -= 1
         player.add_tile(tile.clone())
-        print(f"{tile} claimed by {player}!")
+        player.io.show_message(f"{tile} claimed by {player}!")
         if tile.type == TileType.BLUE:
             player.add_scarabs(1)
         if tile.type == TileType.RED:
@@ -186,54 +190,48 @@ class Game:
         self.final_roll_off = True
         for i in range(self.next_player_turn, len(self.players)):
             self.players[i].add_effect(Effect(add_red))
-        print("The Final Roll-Off has begun!")
+        self.alert_players(Alert.ROLL_OFF)
 
     def submit_score(self, player: Player):
         if player.final_score == (0, 0):
             return
-        print(f"{player} has submitted a score of {player.final_score[0]} {DiceValue(player.final_score[1]).name}s!")
         if player.final_score > self.high_score:
             self.high_scorer = player
             self.high_score = player.final_score
-            print(f"{player} takes the Pharaoh!")
+            pharaoh_taken = True
         else:
-            print(f"{player} does not take the Pharaoh...")
+            pharaoh_taken = False
+        self.alert_players(Alert.SCORE_SUBMITTED, {'player': player, 'pharaoh-taken': pharaoh_taken})
 
     def play_game(self):
-        print(BOLD+"Welcome to Favor of the Pharaoh!"+RESET)
-        print("================================")
+        self.alert_players(Alert.GAME_BEGIN)
         while not self.game_ended:
             next_player = self.players[self.next_player_turn]
             self.next_player_turn += 1
             self.next_player_turn %= len(self.players)
             next_player.take_turn(self)
-        print("================================")
-        print(BOLD+"Game Over!"+RESET)
-        print("================================")
-        for player in self.players:
-            print(f"{player} scored {player.final_score[0]} {DiceValue(player.final_score[1]).name}s.")
-        if self.high_scorer is not None:
-            print(f"{self.high_scorer} wins!")
-        else:
-            print("Nobody wins!")
+        self.alert_players(Alert.GAME_END, {'players': self.players, 'winner': self.high_scorer})
 
 
 tile_set = TileSet(tiles)
 
 
 def main():
-    player = Player([start.clone()], Agent("Player 1", 4), starting_tokens=0)
-    player2 = Player([start.clone()], Agent("Player 2", 1), starting_tokens=1)
+    io = ConsoleIO()
+    player = Player([start.clone()], ("Player 1", 4), io, starting_tokens=0)
+    player2 = Player([start.clone()], ("Player 2", 1), io, starting_tokens=1)
     random.seed(6)
     game = Game([player, player2])
-    # game.play_game()
 
-    # game.print_game()
+    game.play_game()
+    game.print_game()
+
     # with open("descriptions.txt", "w") as file:
     #     for tile in tiles:
     #         file.write(tile.description+"\n")
-    display = PygameDisplay(game)
-    display.run()
+
+    # display = PygameDisplay(game)
+    # display.run()
 
 
 if __name__ == "__main__":
