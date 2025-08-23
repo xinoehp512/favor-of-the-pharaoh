@@ -1,11 +1,15 @@
 
-
+from __future__ import annotations
+from dataclasses import dataclass
 import itertools
 from typing import Any, Protocol, TYPE_CHECKING, TypeVar
+
+import pygame
 
 from dice import Die
 from display import BOLD, FOREGROUND, RESET, Text_Canvas
 from enums import Alert, DiceFace, DiceValue, TileType
+from layout_division import FlowDirection, LayoutDivision, Spacing, TextDivision, TextStyle
 from tile import SelectionException
 
 if TYPE_CHECKING:
@@ -268,3 +272,283 @@ class ConsoleIO(IOPort):
                     print(f"{winner} wins!")
                 else:
                     print("Nobody wins!")
+
+
+@dataclass
+class LayoutState():
+    conditions: dict[int, list[str]]
+    tile_names: dict[int, list[str]]
+    tile_descriptions: dict[int, list[str]]
+    tile_counts: dict[int, list[int]]
+    sides: dict[int, str]
+
+    def get_condition(self, x: int, y: int):
+        return self.conditions[y][x]
+
+    def get_tile_name(self, x: int, y: int):
+        return self.tile_names[y][x]
+
+    def get_tile_description(self, x: int, y: int):
+        return self.tile_descriptions[y][x]
+
+    def get_tile_count(self, x: int, y: int):
+        return self.tile_counts[y][x]
+
+    def get_side(self, y: int):
+        return self.sides[y]
+
+    def add_herder(self, tile_description: str, tile_count: int):
+        self.conditions[1] = ["Any Roll"]
+        self.tile_names[1] = ["Herder"]
+        self.tile_descriptions[1] = [tile_description]
+        self.tile_counts[1] = [tile_count]
+
+
+class DisplayException(Exception):
+    pass
+
+
+class PygameIO(IOPort):
+    def _generate_layout(self):
+        # Color definitions
+        COLOR_DICT: dict[TileType | str, tuple[int, int, int]] = {
+            TileType.YELLOW: (255, 215, 0),
+            TileType.BLUE: (0, 102, 204),
+            TileType.RED: (220, 20, 60),
+            "background": (30, 30, 30),
+            "tile_bg": (60, 60, 60),
+            "text": (255, 255, 255),
+            "text-dark": (30, 30, 30),
+            "gray": (180, 180, 180),
+        }
+
+        # Font definitions
+        FONT_DICT: dict[str, TextStyle] = {
+            "title": TextStyle((255, 255, 255), "consolas", 18),
+            "title-dark": TextStyle((30, 30, 30), "consolas", 18),
+            "side": TextStyle((255, 255, 255), "consolas", 20),
+            "description": TextStyle((255, 255, 255), "consolas", 15),
+            "description-dark": TextStyle((30, 30, 30), "consolas", 15),
+            "condition": TextStyle((255, 255, 255), "consolas", 16, is_bold=True),
+        }
+
+        def get_tile_type(x: int):
+            match x:
+                case 0 | 1:
+                    return TileType.YELLOW
+                case 2:
+                    return TileType.BLUE
+                case 3:
+                    return TileType.RED
+                case _:
+                    raise ValueError(f"Undefined column value: {x}")
+
+        def create_tile(x: int, y: int):
+            return LayoutDivision(
+                margin=Spacing.all(10),
+                padding=Spacing.all(5),
+                background_color=COLOR_DICT["tile_bg"],
+                horiz_alignment=0.5,
+                children=[
+                    TextDivision(
+                        text_callback=lambda: self.layout_state.get_condition(x, y),
+                        text_style=FONT_DICT["condition"],
+                        flex=1,
+                        flex_weight=1,
+                        vert_alignment=0.5,
+                        horiz_alignment=0.5
+
+                    ),
+                    LayoutDivision(
+                        background_color=COLOR_DICT[get_tile_type(x)],
+                        padding=Spacing.all(5),
+                        flex_weight=5,
+                        children=[
+                            LayoutDivision(
+                                children=[
+                                    TextDivision(
+                                        text_callback=lambda: self.layout_state.get_tile_name(x, y),
+                                        text_style=FONT_DICT["title" if get_tile_type(
+                                            x) is not TileType.YELLOW else "title-dark"],
+                                        flex=1,
+                                        horiz_alignment=0
+                                    ),
+                                    TextDivision(
+                                        text_callback=lambda: f"x{self.layout_state.get_tile_count(x, y)}",
+                                        text_style=FONT_DICT["title" if get_tile_type(
+                                            x) is not TileType.YELLOW else "title-dark"],
+                                        flex=1,
+                                        horiz_alignment=1
+                                    ),
+                                ],
+                                flow_direction=FlowDirection.RIGHT
+                            ),
+                            TextDivision(
+                                text_callback=lambda: self.layout_state.get_tile_description(x, y),
+                                text_style=FONT_DICT["description" if get_tile_type(
+                                    x) is not TileType.YELLOW else "description-dark"],
+                                margin=Spacing.all(5),
+                                flex=1,
+                                flex_weight=4
+                            )
+                        ]
+                    )
+                ]
+            )
+        layout = LayoutDivision(
+            # padding=Spacing.axis(horiz=10),
+            background_color=COLOR_DICT["background"],
+            children=[
+
+                LayoutDivision(
+                    # margin=Spacing.axis(vert=5),
+                    # padding=Spacing.all(5),
+                    # background_color=(255, 0, 0),
+                    children=[
+                        create_tile(x, y)
+                        for x in range(4)
+                    ] + [
+                        TextDivision(
+                            text_callback=lambda y=y: self.layout_state.get_side(y),
+                            text_style=FONT_DICT["side"],
+                            margin=Spacing.all(10),
+                            padding=Spacing.all(5)
+                        )
+                    ],
+                    flow_direction=FlowDirection.RIGHT
+                )
+                for y in range(7, 2, -1)
+            ] + [
+                LayoutDivision(
+                    children=[
+                        create_tile(0, 1),
+                        LayoutDivision(flex_weight=4)
+                    ],
+                    flow_direction=FlowDirection.RIGHT
+                )
+
+            ]
+        )
+
+        return layout
+
+    def __init__(self) -> None:
+        SCREEN_WIDTH = 1500
+        SCREEN_HEIGHT = 1000
+        self.running = True
+        self.clock = pygame.time.Clock()
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
+        self.layout_state = LayoutState(conditions={},
+                                        tile_names={},
+                                        tile_descriptions={},
+                                        tile_counts={},
+                                        sides={},
+                                        )
+        self.layout = self._generate_layout()
+        self.events: list[pygame.event.Event] = []
+
+    def _process_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            else:
+                self.events.append(event)
+
+    def _get_events(self):
+        self._process_events()
+        events = self.events
+        self.events = []
+        return events
+
+    def _render(self):
+        if not self.running:
+            raise DisplayException("Display has stopped!")
+        screen_w, screen_h = self.screen.get_size()
+        layout_surface = self.layout.draw((screen_w, (screen_h*2)//3))
+        self.screen.blit(layout_surface, (0, 0))
+        pygame.display.flip()
+
+    def show_board(self, game: Game):
+        self.layout_state.conditions = {lvl: [game.get_condition(lvl, x).name for x in range(4)] for lvl in range(7, 2, -1)}
+        self.layout_state.tile_names = {lvl: [game.tiles[lvl][x].name for x in range(4)] for lvl in range(7, 2, -1)}
+        self.layout_state.tile_descriptions = {lvl: [game.tiles[lvl][x].description for x in range(4)] for lvl in range(7, 2, -1)}
+        self.layout_state.tile_counts = {lvl: [game.get_tile_amount(game.tiles[lvl][x]) for x in range(4)] for lvl in range(7, 2, -1)}
+        self.layout_state.sides = {lvl: f'{game.get_row_mode(lvl).name} side' for lvl in range(7, 2, -1)}
+
+        herder = game.tiles[1][0]
+        self.layout_state.add_herder(herder.description, game.get_tile_amount(herder))
+
+    def show_player_state(self, player: Player, game: Game):
+        self.show_board(game)
+        ...
+
+    def show_message(self, text: str): ...
+
+    def choose_die(self, dice: list[Die], message: str = "Choose a die:", constraint: DiceConstraint = lambda d: True) -> Die:
+        while True:
+            for _event in self._get_events():
+                ...
+            self._render()
+            self.clock.tick(30)
+
+    def choose_dice(self, dice: list[Die], minimum: int, maximum: int | None = -1,
+                    message: str = "Choose dice:", constraint: DiceConstraint = lambda d: True) -> list[Die]:
+        while True:
+            for _event in self._get_events():
+                ...
+            self._render()
+            self.clock.tick(30)
+
+    def choose_item(self, prompt: str, options: list[T]) -> T:
+        while True:
+            for _event in self._get_events():
+                ...
+            self._render()
+            self.clock.tick(30)
+
+    def choose_items(self, prompt: str, options: list[T], min_amount: int, max_amount: int | None = -1) -> list[T]:
+        while True:
+            for _event in self._get_events():
+                ...
+            self._render()
+            self.clock.tick(30)
+
+    def choose_rearrangement(self, dice: list[Die], target_sum: int) -> list[tuple[Die, DiceFace]]:
+        while True:
+            for _event in self._get_events():
+                ...
+            self._render()
+            self.clock.tick(30)
+
+    def choose_adjust_face(self, die_to_adjust: Die) -> DiceFace:
+        while True:
+            for _event in self._get_events():
+                ...
+            self._render()
+            self.clock.tick(30)
+
+    def alert(self, event: Alert, data: dict[str, Any] = {}):
+        if event == Alert.ROLL_OFF:
+            self.show_message("The Final Roll-Off has begun!")
+        elif event == Alert.SCORE_SUBMITTED:
+            player = data['player']
+            pharaoh_taken = data['pharaoh-taken']
+            msg = f"{player} has submitted a score of {player.final_score[0]} {DiceValue(player.final_score[1]).name}s!"
+            if pharaoh_taken:
+                msg += f" {player} takes the Pharaoh!"
+            else:
+                msg += f" {player} does not take the Pharaoh..."
+            self.show_message(msg)
+        elif event == Alert.GAME_BEGIN:
+            self.show_message("Welcome to Favor of the Pharaoh!")
+        elif event == Alert.GAME_END:
+            players = data['players']
+            winner = data['winner']
+            msg = "Game Over!\n"
+            for player in players:
+                msg += f"{player} scored {player.final_score[0]} {DiceValue(player.final_score[1]).name}s.\n"
+            if winner is not None:
+                msg += f"{winner} wins!"
+            else:
+                msg += "Nobody wins!"
+            self.show_message(msg)
