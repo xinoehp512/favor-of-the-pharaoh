@@ -102,7 +102,8 @@ class LayoutDivision:
         height: Optional[int] = None,
         flex_weight: float = 1.0,
         background_color: Optional[tuple[int, int, int]] = None,
-        flex: int = 1
+        flex: int = 1,
+        id: Optional[str] = None
     ):
         self.margin = margin
         self.padding = padding
@@ -117,6 +118,7 @@ class LayoutDivision:
         self.flex_weight = flex_weight
         self.background_color = background_color
         self.flex = flex
+        self.id = id
 
     def get_size(self) -> Optional[tuple[int, int]]:
         """
@@ -234,6 +236,19 @@ class LayoutDivision:
 
         return surface
 
+    def get_element_by_id(self, id: str) -> LayoutDivision | None:
+        if self.id == id:
+            return self
+        for child in self.children:
+            element = child.get_element_by_id(id)
+            if element:
+                return element
+
+    def add_child(self, child: LayoutDivision):
+        self.children.append(child)
+
+    def clear_children(self):
+        self.children = []
 # ---------------- Text Division ----------------
 
 

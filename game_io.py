@@ -1,16 +1,16 @@
 
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import itertools
-from typing import Any, Protocol, TYPE_CHECKING, TypeVar
+from typing import Any, Callable, Protocol, TYPE_CHECKING, TypeVar
 
 import pygame
 
 from dice import Die
 from display import BOLD, FOREGROUND, RESET, Text_Canvas
 from enums import Alert, DiceFace, DiceValue, TileType
-from layout_division import FlowDirection, LayoutDivision, Spacing, TextDivision, TextStyle
-from tile import SelectionException
+from layout_division import BorderStyle, FlowDirection, LayoutDivision, Spacing, TextDivision, TextStyle
+from tile import SelectionException, Tile
 
 if TYPE_CHECKING:
     from player import DiceConstraint
@@ -276,11 +276,11 @@ class ConsoleIO(IOPort):
 
 @dataclass
 class LayoutState():
-    conditions: dict[int, list[str]]
-    tile_names: dict[int, list[str]]
-    tile_descriptions: dict[int, list[str]]
-    tile_counts: dict[int, list[int]]
-    sides: dict[int, str]
+    conditions: dict[int, list[str]] = field(default_factory=dict[int, list[str]])
+    tile_names: dict[int, list[str]] = field(default_factory=dict[int, list[str]])
+    tile_descriptions: dict[int, list[str]] = field(default_factory=dict[int, list[str]])
+    tile_counts: dict[int, list[int]] = field(default_factory=dict[int, list[int]])
+    sides: dict[int, str] = field(default_factory=dict[int, str])
 
     def get_condition(self, x: int, y: int):
         return self.conditions[y][x]
@@ -297,40 +297,76 @@ class LayoutState():
     def get_side(self, y: int):
         return self.sides[y]
 
-    def add_herder(self, tile_description: str, tile_count: int):
-        self.conditions[1] = ["Any Roll"]
-        self.tile_names[1] = ["Herder"]
-        self.tile_descriptions[1] = [tile_description]
-        self.tile_counts[1] = [tile_count]
-
 
 class DisplayException(Exception):
     pass
 
 
-class PygameIO(IOPort):
-    def _generate_layout(self):
-        # Color definitions
-        COLOR_DICT: dict[TileType | str, tuple[int, int, int]] = {
-            TileType.YELLOW: (255, 215, 0),
-            TileType.BLUE: (0, 102, 204),
-            TileType.RED: (220, 20, 60),
-            "background": (30, 30, 30),
-            "tile_bg": (60, 60, 60),
-            "text": (255, 255, 255),
-            "text-dark": (30, 30, 30),
-            "gray": (180, 180, 180),
-        }
+PLAYER_TILES = "player-tiles"
+PLAYER_DICE = "player-dice"
+# Color definitions
+COLOR_DICT: dict[TileType | str, tuple[int, int, int]] = {
+    TileType.YELLOW: (255, 215, 0),
+    TileType.BLUE: (0, 102, 204),
+    TileType.RED: (220, 20, 60),
+    "background": (30, 30, 30),
+    "tile_bg": (60, 60, 60),
+    "text": (255, 255, 255),
+    "text-dark": (30, 30, 30),
+    "gray": (180, 180, 180),
+}
 
-        # Font definitions
-        FONT_DICT: dict[str, TextStyle] = {
-            "title": TextStyle((255, 255, 255), "consolas", 18),
-            "title-dark": TextStyle((30, 30, 30), "consolas", 18),
-            "side": TextStyle((255, 255, 255), "consolas", 20),
-            "description": TextStyle((255, 255, 255), "consolas", 15),
-            "description-dark": TextStyle((30, 30, 30), "consolas", 15),
-            "condition": TextStyle((255, 255, 255), "consolas", 16, is_bold=True),
-        }
+# Font definitions
+FONT_DICT: dict[str, TextStyle] = {
+    "title": TextStyle((255, 255, 255), "consolas", 18),
+    "title-dark": TextStyle((30, 30, 30), "consolas", 18),
+    "side": TextStyle((255, 255, 255), "consolas", 20),
+    "description": TextStyle((255, 255, 255), "consolas", 15),
+    "description-dark": TextStyle((30, 30, 30), "consolas", 15),
+    "condition": TextStyle((255, 255, 255), "consolas", 16, is_bold=True),
+}
+
+
+class PygameIO(IOPort):
+    @staticmethod
+    def create_tile(tile: Tile) -> LayoutDivision:
+        return PygameIO._create_tile_from_values(lambda: tile.name, lambda: "", lambda: tile.description, tile.type)
+
+    @staticmethod
+    def _create_tile_from_values(title: Callable[[], str], count: Callable[[], str], description: Callable[[], str], tile_type: TileType) -> LayoutDivision:
+        return LayoutDivision(
+            background_color=COLOR_DICT[tile_type],
+            padding=Spacing.all(5),
+            flex_weight=5,
+            children=[
+                LayoutDivision(
+                    children=[
+                        TextDivision(
+                            text_callback=title,
+                            text_style=FONT_DICT["title" if tile_type is not TileType.YELLOW else "title-dark"],
+                            flex=1,
+                            horiz_alignment=0
+                        ),
+                        TextDivision(
+                            text_callback=count,
+                            text_style=FONT_DICT["title" if tile_type is not TileType.YELLOW else "title-dark"],
+                            flex=1,
+                            horiz_alignment=1
+                        ),
+                    ],
+                    flow_direction=FlowDirection.RIGHT
+                ),
+                TextDivision(
+                    text_callback=description,
+                    text_style=FONT_DICT["description" if tile_type is not TileType.YELLOW else "description-dark"],
+                    margin=Spacing.all(5),
+                    flex=1,
+                    flex_weight=4
+                )
+            ]
+        )
+
+    def _generate_layout(self):
 
         def get_tile_type(x: int):
             match x:
@@ -343,7 +379,7 @@ class PygameIO(IOPort):
                 case _:
                     raise ValueError(f"Undefined column value: {x}")
 
-        def create_tile(x: int, y: int):
+        def create_tile_shop(condition: Callable[[], str], title: Callable[[], str], count: Callable[[], str], description: Callable[[], str], tile_type: TileType):
             return LayoutDivision(
                 margin=Spacing.all(10),
                 padding=Spacing.all(5),
@@ -351,7 +387,7 @@ class PygameIO(IOPort):
                 horiz_alignment=0.5,
                 children=[
                     TextDivision(
-                        text_callback=lambda: self.layout_state.get_condition(x, y),
+                        text_callback=condition,
                         text_style=FONT_DICT["condition"],
                         flex=1,
                         flex_weight=1,
@@ -359,72 +395,69 @@ class PygameIO(IOPort):
                         horiz_alignment=0.5
 
                     ),
-                    LayoutDivision(
-                        background_color=COLOR_DICT[get_tile_type(x)],
-                        padding=Spacing.all(5),
-                        flex_weight=5,
-                        children=[
-                            LayoutDivision(
-                                children=[
-                                    TextDivision(
-                                        text_callback=lambda: self.layout_state.get_tile_name(x, y),
-                                        text_style=FONT_DICT["title" if get_tile_type(
-                                            x) is not TileType.YELLOW else "title-dark"],
-                                        flex=1,
-                                        horiz_alignment=0
-                                    ),
-                                    TextDivision(
-                                        text_callback=lambda: f"x{self.layout_state.get_tile_count(x, y)}",
-                                        text_style=FONT_DICT["title" if get_tile_type(
-                                            x) is not TileType.YELLOW else "title-dark"],
-                                        flex=1,
-                                        horiz_alignment=1
-                                    ),
-                                ],
-                                flow_direction=FlowDirection.RIGHT
-                            ),
-                            TextDivision(
-                                text_callback=lambda: self.layout_state.get_tile_description(x, y),
-                                text_style=FONT_DICT["description" if get_tile_type(
-                                    x) is not TileType.YELLOW else "description-dark"],
-                                margin=Spacing.all(5),
-                                flex=1,
-                                flex_weight=4
-                            )
-                        ]
-                    )
+                    PygameIO._create_tile_from_values(title, count, description, tile_type)
                 ]
             )
         layout = LayoutDivision(
             # padding=Spacing.axis(horiz=10),
             background_color=COLOR_DICT["background"],
             children=[
-
                 LayoutDivision(
-                    # margin=Spacing.axis(vert=5),
-                    # padding=Spacing.all(5),
-                    # background_color=(255, 0, 0),
+                    flex_weight=2,
                     children=[
-                        create_tile(x, y)
-                        for x in range(4)
-                    ] + [
-                        TextDivision(
-                            text_callback=lambda y=y: self.layout_state.get_side(y),
-                            text_style=FONT_DICT["side"],
-                            margin=Spacing.all(10),
-                            padding=Spacing.all(5)
+                        LayoutDivision(
+                            # margin=Spacing.axis(vert=5),
+                            # padding=Spacing.all(5),
+                            # background_color=(255, 0, 0),
+                            children=[
+                                create_tile_shop(
+                                    condition=lambda x=x, y=y: self.layout_state.get_condition(x, y),
+                                    title=lambda x=x, y=y: self.layout_state.get_tile_name(x, y),
+                                    count=lambda x=x, y=y: f"x{self.layout_state.get_tile_count(x, y)}",
+                                    description=lambda x=x, y=y: self.layout_state.get_tile_description(x, y),
+                                    tile_type=get_tile_type(x)
+                                )
+                                for x in range(4)
+                            ] + [
+                                TextDivision(
+                                    text_callback=lambda y=y: self.layout_state.get_side(y),
+                                    text_style=FONT_DICT["side"],
+                                    margin=Spacing.all(10),
+                                    padding=Spacing.all(5)
+                                )
+                            ],
+                            flow_direction=FlowDirection.RIGHT
                         )
-                    ],
-                    flow_direction=FlowDirection.RIGHT
-                )
-                for y in range(7, 2, -1)
-            ] + [
+                        for y in range(7, 2, -1)
+                    ] +
+                    [
+                        LayoutDivision(
+                            children=[
+                                create_tile_shop(  # TODO: Un-hardcode Herder.
+
+                                    condition=lambda: "Any Roll",
+                                    title=lambda: "Herder",
+                                    count=lambda: "",
+                                    description=lambda: "After locking a pair, may gain +1 Standard die to Roll.",
+                                    tile_type=TileType.YELLOW
+                                ),
+                                LayoutDivision(flex_weight=4)
+                            ],
+                            flow_direction=FlowDirection.RIGHT
+                        )
+
+                    ]),
                 LayoutDivision(
+                    border=BorderStyle(5, (255, 255, 255)),
                     children=[
-                        create_tile(0, 1),
-                        LayoutDivision(flex_weight=4)
-                    ],
-                    flow_direction=FlowDirection.RIGHT
+                        LayoutDivision(
+                            id=PLAYER_TILES
+                        ),
+                        LayoutDivision(
+                            id=PLAYER_DICE,
+                            flex_weight=2
+                        )
+                    ]
                 )
 
             ]
@@ -438,12 +471,7 @@ class PygameIO(IOPort):
         self.running = True
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
-        self.layout_state = LayoutState(conditions={},
-                                        tile_names={},
-                                        tile_descriptions={},
-                                        tile_counts={},
-                                        sides={},
-                                        )
+        self.layout_state = LayoutState()
         self.layout = self._generate_layout()
         self.events: list[pygame.event.Event] = []
 
@@ -464,7 +492,7 @@ class PygameIO(IOPort):
         if not self.running:
             raise DisplayException("Display has stopped!")
         screen_w, screen_h = self.screen.get_size()
-        layout_surface = self.layout.draw((screen_w, (screen_h*2)//3))
+        layout_surface = self.layout.draw((screen_w, screen_h))
         self.screen.blit(layout_surface, (0, 0))
         pygame.display.flip()
 
@@ -475,12 +503,15 @@ class PygameIO(IOPort):
         self.layout_state.tile_counts = {lvl: [game.get_tile_amount(game.tiles[lvl][x]) for x in range(4)] for lvl in range(7, 2, -1)}
         self.layout_state.sides = {lvl: f'{game.get_row_mode(lvl).name} side' for lvl in range(7, 2, -1)}
 
-        herder = game.tiles[1][0]
-        self.layout_state.add_herder(herder.description, game.get_tile_amount(herder))
-
     def show_player_state(self, player: Player, game: Game):
         self.show_board(game)
-        ...
+        player_tiles = player.tiles
+        player_tiles_layout = self.layout.get_element_by_id(PLAYER_TILES)
+        if not player_tiles_layout:
+            raise DisplayException(f"Missing Layout element: {PLAYER_TILES}")
+        player_tiles_layout.clear_children()
+        for tile in player_tiles:
+            player_tiles_layout.add_child(PygameIO.create_tile(tile))
 
     def show_message(self, text: str): ...
 
